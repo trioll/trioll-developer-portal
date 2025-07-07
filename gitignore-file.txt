@@ -1,0 +1,37 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencies (if any added later)
+node_modules/
+
+# Environment files (never commit these)
+.env
+.env.local
+.env.*.local
+
+# AWS credentials (never commit)
+aws-credentials.json
+*.pem
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Uploaded test games
+test-games/
+uploads/
+
+# Build files (if any)
+dist/
+build/
