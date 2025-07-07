@@ -956,7 +956,6 @@
                     Key: key,
                     Body: file,
                     ContentType: file.type || 'application/octet-stream',
-                    ACL: 'public-read',
                     CacheControl: 'max-age=31536000'
                 };
                 
@@ -989,7 +988,6 @@
                     Key: thumbnailKey,
                     Body: thumbnailFile,
                     ContentType: thumbnailFile.type,
-                    ACL: 'public-read',
                     CacheControl: 'max-age=86400'
                 };
                 
