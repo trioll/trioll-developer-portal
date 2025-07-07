@@ -1024,6 +1024,7 @@
                     // Upload game files
                     let uploadedCount = 0;
                     const totalFiles = files.length;
+                    let mainHtmlFile = null;
                     
                     for (const file of files) {
                         const filePath = file.webkitRelativePath || file.name;
@@ -1039,8 +1040,12 @@
                             const result = await this.uploadFile(file, gameId, cleanPath);
                             uploadResults.files.push(result);
                             
-                            if (file.name === 'index.html') {
-                                uploadResults.gameUrl = result.url;
+                            // Use any HTML file as the game URL (prefer index.html if it exists)
+                            if (file.name.toLowerCase().endsWith('.html')) {
+                                if (file.name.toLowerCase() === 'index.html' || !mainHtmlFile) {
+                                    uploadResults.gameUrl = result.url;
+                                    mainHtmlFile = file.name;
+                                }
                             }
                             
                             uploadedCount++;
@@ -1056,6 +1061,7 @@
                     const manifestBlob = new Blob([JSON.stringify({
                         gameId,
                         ...metadata,
+                        mainFile: mainHtmlFile || 'index.html',
                         uploadedAt: new Date().toISOString(),
                         version: '1.0.0'
                     }, null, 2)], { type: 'application/json' });
@@ -1293,11 +1299,12 @@
         // File validation
         function validateGameFiles(files) {
             const errors = [];
-            let hasIndexHtml = false;
+            let hasHtmlFile = false;
             
             for (const file of files) {
-                if (file.name === 'index.html') {
-                    hasIndexHtml = true;
+                // Check if file is HTML (any HTML file is accepted)
+                if (file.name.toLowerCase().endsWith('.html')) {
+                    hasHtmlFile = true;
                 }
                 
                 // Check file size (max 50MB per file)
@@ -1318,8 +1325,8 @@
                 }
             }
             
-            if (!hasIndexHtml) {
-                errors.push('Game must include index.html file');
+            if (!hasHtmlFile) {
+                errors.push('Game must include at least one HTML file');
             }
             
             return errors;
