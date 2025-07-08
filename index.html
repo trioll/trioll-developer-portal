@@ -812,17 +812,17 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Game Files (select folder with index.html) *</label>
+                            <label class="form-label">Game Files (HTML and assets) *</label>
                             <div class="upload-area" id="gameUploadArea">
                                 <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">
-                                    Drop your game folder here
+                                    Drop your game files here
                                 </p>
                                 <p style="color: var(--text-gray-400); margin-bottom: 1rem;">
                                     or click to browse
                                 </p>
-                                <input type="file" id="gameFiles" webkitdirectory directory multiple style="display: none;" required>
+                                <input type="file" id="gameFiles" multiple style="display: none;" required>
                                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('gameFiles').click()">
-                                    Select Folder
+                                    Select Files
                                 </button>
                             </div>
                             <div class="file-info" id="gameFilesInfo"></div>
@@ -1307,9 +1307,9 @@
                     hasHtmlFile = true;
                 }
                 
-                // Check file size (max 50MB per file)
-                if (file.size > 50 * 1024 * 1024) {
-                    errors.push(`${file.name} exceeds 50MB limit`);
+                // Check file size (max 1GB per file)
+                if (file.size > 1024 * 1024 * 1024) {
+                    errors.push(`${file.name} exceeds 1GB limit`);
                 }
                 
                 // Check file types
