@@ -559,12 +559,38 @@
 
         .game-info {
             padding: 1.5rem;
+            position: relative;
         }
 
         .game-title {
             font-size: 1.125rem;
             font-weight: 600;
             margin-bottom: 0.5rem;
+        }
+        
+        .delete-button {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .delete-button:hover {
+            background: var(--accent-red);
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        .delete-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .game-url {
@@ -1579,12 +1605,13 @@
             }
 
             gamesGrid.innerHTML = uploadedGames.map(game => `
-                <div class="game-card">
+                <div class="game-card" data-game-id="${game.id || game.gameId}">
                     ${game.thumbnailUrl ? 
                         `<img src="${game.thumbnailUrl}" alt="${game.name}" class="game-thumbnail">` :
                         `<div class="game-thumbnail" style="display: flex; align-items: center; justify-content: center; font-size: 3rem;">🎮</div>`
                     }
                     <div class="game-info">
+                        <button class="delete-button" onclick="deleteGame('${game.id || game.gameId}', '${game.name}')">Delete</button>
                         <h3 class="game-title">${game.name}</h3>
                         <p style="color: var(--text-gray-400); font-size: 0.875rem; margin-bottom: 0.5rem;">
                             ${game.category}
@@ -1760,6 +1787,88 @@
                 }, 3000);
             }
         });
+
+        // Delete game function
+        async function deleteGame(gameId, gameName) {
+            if (!confirm(`Are you sure you want to delete "${gameName}"? This action cannot be undone.`)) {
+                return;
+            }
+            
+            const deleteButton = document.querySelector(`[data-game-id="${gameId}"] .delete-button`);
+            if (deleteButton) {
+                deleteButton.disabled = true;
+                deleteButton.textContent = 'Deleting...';
+            }
+            
+            try {
+                // Step 1: Delete from DynamoDB via API
+                console.log('Deleting game from database:', gameId);
+                const dbResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${gameId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!dbResponse.ok) {
+                    console.error('Failed to delete from database:', dbResponse.status);
+                }
+                
+                // Step 2: Delete from S3 (all files in the game folder)
+                if (awsInitialized && s3) {
+                    console.log('Deleting game files from S3:', gameId);
+                    
+                    // List all objects in the game folder
+                    const listParams = {
+                        Bucket: AWS_CONFIG.gamesBucket,
+                        Prefix: `${gameId}/`
+                    };
+                    
+                    s3.listObjectsV2(listParams, async (err, data) => {
+                        if (err) {
+                            console.error('Error listing S3 objects:', err);
+                            showAlert('Failed to delete game files from storage', 'error');
+                            return;
+                        }
+                        
+                        if (data.Contents && data.Contents.length > 0) {
+                            // Delete all objects
+                            const deleteParams = {
+                                Bucket: AWS_CONFIG.gamesBucket,
+                                Delete: {
+                                    Objects: data.Contents.map(obj => ({ Key: obj.Key }))
+                                }
+                            };
+                            
+                            s3.deleteObjects(deleteParams, (deleteErr, deleteData) => {
+                                if (deleteErr) {
+                                    console.error('Error deleting S3 objects:', deleteErr);
+                                    showAlert('Failed to delete some game files', 'error');
+                                } else {
+                                    console.log('Successfully deleted S3 objects:', deleteData);
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                // Step 3: Remove from local array and refresh display
+                uploadedGames = uploadedGames.filter(game => (game.id || game.gameId) !== gameId);
+                displayGames();
+                
+                showAlert(`Successfully deleted "${gameName}"`, 'success');
+                
+            } catch (error) {
+                console.error('Error deleting game:', error);
+                showAlert(`Failed to delete game: ${error.message}`, 'error');
+                
+                // Re-enable button
+                if (deleteButton) {
+                    deleteButton.disabled = false;
+                    deleteButton.textContent = 'Delete';
+                }
+            }
+        }
 
         // Initialize everything
         window.addEventListener('DOMContentLoaded', () => {
