@@ -1792,7 +1792,7 @@
         async function deleteGame(gameId, gameName) {
             console.log('Delete function called for:', gameId, gameName);
             
-            if (!confirm(`Are you sure you want to delete "${gameName}"? This action cannot be undone.`)) {
+            if (!confirm(`Are you sure you want to delete "${gameName}"? This will move it to the bin folder.`)) {
                 return;
             }
             
@@ -1806,14 +1806,13 @@
             const deleteButton = document.querySelector(`[data-game-id="${gameId}"] .delete-button`);
             if (deleteButton) {
                 deleteButton.disabled = true;
-                deleteButton.textContent = 'Deleting...';
+                deleteButton.textContent = 'Moving to bin...';
             }
             
             try {
-                // Step 1: Delete from DynamoDB via API
-                console.log('Deleting game from database:', gameId);
+                // Step 1: Try to delete from DynamoDB via API (optional, may fail)
+                console.log('Attempting to delete game from database:', gameId);
                 
-                // Try to delete via API (may fail due to auth requirements)
                 try {
                     const dbResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${gameId}`, {
                         method: 'DELETE',
@@ -1824,19 +1823,17 @@
                     
                     if (!dbResponse.ok) {
                         const errorText = await dbResponse.text();
-                        console.warn('API deletion failed:', dbResponse.status, errorText);
-                        console.log('Will proceed with direct DynamoDB deletion if available');
+                        console.warn('API deletion failed (this is expected):', dbResponse.status, errorText);
                     } else {
                         console.log('Successfully deleted from API');
                     }
                 } catch (apiError) {
-                    console.warn('API deletion error:', apiError);
-                    console.log('Will proceed with S3 deletion');
+                    console.warn('API deletion error (expected):', apiError);
                 }
                 
-                // Step 2: Delete from S3 (all files in the game folder)
+                // Step 2: Move files to bin folder in S3
                 if (awsInitialized && s3) {
-                    console.log('Deleting game files from S3:', gameId);
+                    console.log('Moving game files to bin in S3:', gameId);
                     
                     // List all objects in the game folder
                     const listParams = {
@@ -1847,35 +1844,83 @@
                     s3.listObjectsV2(listParams, async (err, data) => {
                         if (err) {
                             console.error('Error listing S3 objects:', err);
-                            console.error('List params were:', listParams);
-                            showAlert('Failed to delete game files from storage: ' + err.message, 'error');
+                            showAlert('Failed to move game files: ' + err.message, 'error');
+                            // Re-enable button
+                            if (deleteButton) {
+                                deleteButton.disabled = false;
+                                deleteButton.textContent = 'Delete';
+                            }
                             return;
                         }
                         
                         console.log('S3 objects found:', data.Contents ? data.Contents.length : 0);
                         
                         if (data.Contents && data.Contents.length > 0) {
-                            // Delete all objects
-                            const deleteParams = {
-                                Bucket: AWS_CONFIG.gamesBucket,
-                                Delete: {
-                                    Objects: data.Contents.map(obj => ({ Key: obj.Key }))
-                                }
-                            };
+                            let successCount = 0;
+                            let errorCount = 0;
+                            const totalFiles = data.Contents.length;
                             
-                            console.log('Attempting to delete S3 objects:', deleteParams.Delete.Objects);
-                            
-                            s3.deleteObjects(deleteParams, (deleteErr, deleteData) => {
-                                if (deleteErr) {
-                                    console.error('Error deleting S3 objects:', deleteErr);
-                                    showAlert('Failed to delete some game files: ' + deleteErr.message, 'error');
-                                } else {
-                                    console.log('Successfully deleted S3 objects:', deleteData);
-                                    showAlert('Game files deleted from storage', 'success');
+                            // Copy each file to bin folder and delete original
+                            for (const object of data.Contents) {
+                                const sourceKey = object.Key;
+                                const destKey = `bin/${sourceKey}`;
+                                
+                                try {
+                                    // Copy to bin folder
+                                    await new Promise((resolve, reject) => {
+                                        const copyParams = {
+                                            Bucket: AWS_CONFIG.gamesBucket,
+                                            CopySource: `${AWS_CONFIG.gamesBucket}/${sourceKey}`,
+                                            Key: destKey
+                                        };
+                                        
+                                        console.log(`Copying ${sourceKey} to ${destKey}`);
+                                        
+                                        s3.copyObject(copyParams, (copyErr, copyData) => {
+                                            if (copyErr) {
+                                                console.error(`Error copying ${sourceKey}:`, copyErr);
+                                                errorCount++;
+                                                reject(copyErr);
+                                            } else {
+                                                console.log(`Successfully copied ${sourceKey}`);
+                                                
+                                                // Delete original after successful copy
+                                                const deleteParams = {
+                                                    Bucket: AWS_CONFIG.gamesBucket,
+                                                    Key: sourceKey
+                                                };
+                                                
+                                                s3.deleteObject(deleteParams, (deleteErr, deleteData) => {
+                                                    if (deleteErr) {
+                                                        console.error(`Error deleting original ${sourceKey}:`, deleteErr);
+                                                        errorCount++;
+                                                        reject(deleteErr);
+                                                    } else {
+                                                        console.log(`Successfully deleted original ${sourceKey}`);
+                                                        successCount++;
+                                                        resolve();
+                                                    }
+                                                });
+                                            }
+                                        });
+                                    });
+                                } catch (moveError) {
+                                    console.error('Error during move operation:', moveError);
+                                    // Continue with other files
                                 }
-                            });
+                            }
+                            
+                            if (successCount === totalFiles) {
+                                console.log(`All ${totalFiles} files moved to bin successfully`);
+                                showAlert(`Game "${gameName}" moved to bin`, 'success');
+                            } else if (successCount > 0) {
+                                showAlert(`Moved ${successCount}/${totalFiles} files to bin`, 'warning');
+                            } else {
+                                showAlert('Failed to move game files to bin', 'error');
+                            }
                         } else {
-                            console.log('No S3 objects found to delete for gameId:', gameId);
+                            console.log('No S3 objects found to move for gameId:', gameId);
+                            showAlert('No game files found', 'warning');
                         }
                     });
                 }
@@ -1884,11 +1929,9 @@
                 uploadedGames = uploadedGames.filter(game => (game.id || game.gameId) !== gameId);
                 displayGames();
                 
-                showAlert(`Successfully deleted "${gameName}"`, 'success');
-                
             } catch (error) {
-                console.error('Error deleting game:', error);
-                showAlert(`Failed to delete game: ${error.message}`, 'error');
+                console.error('Error moving game to bin:', error);
+                showAlert(`Failed to move game to bin: ${error.message}`, 'error');
                 
                 // Re-enable button
                 if (deleteButton) {
