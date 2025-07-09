@@ -1299,7 +1299,8 @@
             
             // Refresh games when navigating to My Games section
             if (sectionId === 'games') {
-                loadGamesFromAPI();
+                // Load from S3 to show actual bucket contents
+                loadGamesFromS3();
             }
         }
 
@@ -1496,11 +1497,13 @@
             }
         }
 
-        // Fallback: Load games directly from S3 bucket listing
+        // Load games directly from S3 bucket listing - PRIMARY METHOD
         async function loadGamesFromS3() {
+            console.log('Loading games from S3 bucket...');
+            
             if (!awsInitialized || !s3) {
-                console.error('AWS not initialized for S3 access');
-                displayGames();
+                console.log('AWS not initialized, falling back to API...');
+                loadGamesFromAPI();
                 return;
             }
 
@@ -1515,35 +1518,67 @@
                 s3.listObjectsV2(params, (err, data) => {
                     if (err) {
                         console.error('S3 listing error:', err);
-                        displayGames();
+                        // Fall back to API if S3 fails
+                        loadGamesFromAPI();
                         return;
                     }
                     
                     // Extract game folders from CommonPrefixes
-                    const gameFolders = (data.CommonPrefixes || []).map(prefix => prefix.Prefix.replace('/', ''));
-                    console.log('Found game folders:', gameFolders);
+                    const gameFolders = (data.CommonPrefixes || [])
+                        .map(prefix => prefix.Prefix.replace('/', ''))
+                        .filter(folder => {
+                            // Filter out non-game folders
+                            return folder && 
+                                   folder !== 'default-images' && 
+                                   folder !== 'games' &&
+                                   !folder.startsWith('.');
+                        });
+                    
+                    console.log('Found game folders in S3:', gameFolders.length, gameFolders);
+                    
+                    if (gameFolders.length === 0) {
+                        console.log('No game folders found, falling back to API...');
+                        loadGamesFromAPI();
+                        return;
+                    }
                     
                     // Create game objects from folder names
-                    uploadedGames = gameFolders.map(gameId => ({
-                        id: gameId,
-                        name: gameId.split('-').map(word => 
-                            word.charAt(0).toUpperCase() + word.slice(1)
-                        ).join(' '),
-                        category: 'Game',
-                        thumbnailUrl: `https://dk72g9i0333mv.cloudfront.net/${gameId}/thumbnail.png`,
-                        gameUrl: `https://dk72g9i0333mv.cloudfront.net/${gameId}/index.html`,
-                        status: 'active',
-                        description: '',
-                        plays: 0,
-                        likes: 0,
-                        rating: 0
-                    }));
+                    uploadedGames = gameFolders.map(gameId => {
+                        // Create a nice display name from the folder name
+                        let displayName = gameId;
+                        
+                        // Handle timestamp-based names (e.g., aliyah-the-game-1752050442084)
+                        if (gameId.match(/-\d{10,}$/)) {
+                            displayName = gameId.replace(/-\d{10,}$/, '');
+                        }
+                        
+                        // Convert to title case
+                        displayName = displayName
+                            .split('-')
+                            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                            .join(' ');
+                        
+                        return {
+                            id: gameId,
+                            name: displayName,
+                            category: 'Game',
+                            thumbnailUrl: `https://dk72g9i0333mv.cloudfront.net/${gameId}/thumbnail.png`,
+                            gameUrl: `https://dk72g9i0333mv.cloudfront.net/${gameId}/index.html`,
+                            status: 'active',
+                            description: `Play ${displayName} now!`,
+                            plays: 0,
+                            likes: 0,
+                            rating: 0
+                        };
+                    });
                     
+                    console.log('Loaded', uploadedGames.length, 'games from S3');
                     displayGames();
                 });
             } catch (error) {
                 console.error('Error loading from S3:', error);
-                displayGames();
+                // Fall back to API
+                loadGamesFromAPI();
             }
         }
 
@@ -1751,8 +1786,12 @@
             
             const lockScreen = new LockScreen();
             
-            // Load games from API when page loads
-            loadGamesFromAPI();
+            // Load games directly from S3 to show actual bucket contents
+            // First try S3, then fall back to API if S3 fails
+            initializeAWS();
+            setTimeout(() => {
+                loadGamesFromS3();
+            }, 1000);
         });
     </script>
 </body>
