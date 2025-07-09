@@ -1790,7 +1790,16 @@
 
         // Delete game function
         async function deleteGame(gameId, gameName) {
+            console.log('Delete function called for:', gameId, gameName);
+            
             if (!confirm(`Are you sure you want to delete "${gameName}"? This action cannot be undone.`)) {
+                return;
+            }
+            
+            // Check if AWS is initialized
+            if (!awsInitialized || !s3) {
+                showAlert('Please wait for AWS to initialize and try again', 'error');
+                console.error('AWS not initialized. Status:', { awsInitialized, s3: !!s3 });
                 return;
             }
             
@@ -1827,9 +1836,12 @@
                     s3.listObjectsV2(listParams, async (err, data) => {
                         if (err) {
                             console.error('Error listing S3 objects:', err);
-                            showAlert('Failed to delete game files from storage', 'error');
+                            console.error('List params were:', listParams);
+                            showAlert('Failed to delete game files from storage: ' + err.message, 'error');
                             return;
                         }
+                        
+                        console.log('S3 objects found:', data.Contents ? data.Contents.length : 0);
                         
                         if (data.Contents && data.Contents.length > 0) {
                             // Delete all objects
@@ -1840,14 +1852,19 @@
                                 }
                             };
                             
+                            console.log('Attempting to delete S3 objects:', deleteParams.Delete.Objects);
+                            
                             s3.deleteObjects(deleteParams, (deleteErr, deleteData) => {
                                 if (deleteErr) {
                                     console.error('Error deleting S3 objects:', deleteErr);
-                                    showAlert('Failed to delete some game files', 'error');
+                                    showAlert('Failed to delete some game files: ' + deleteErr.message, 'error');
                                 } else {
                                     console.log('Successfully deleted S3 objects:', deleteData);
+                                    showAlert('Game files deleted from storage', 'success');
                                 }
                             });
+                        } else {
+                            console.log('No S3 objects found to delete for gameId:', gameId);
                         }
                     });
                 }
