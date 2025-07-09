@@ -1812,15 +1812,26 @@
             try {
                 // Step 1: Delete from DynamoDB via API
                 console.log('Deleting game from database:', gameId);
-                const dbResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${gameId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
                 
-                if (!dbResponse.ok) {
-                    console.error('Failed to delete from database:', dbResponse.status);
+                // Try to delete via API (may fail due to auth requirements)
+                try {
+                    const dbResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${gameId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!dbResponse.ok) {
+                        const errorText = await dbResponse.text();
+                        console.warn('API deletion failed:', dbResponse.status, errorText);
+                        console.log('Will proceed with direct DynamoDB deletion if available');
+                    } else {
+                        console.log('Successfully deleted from API');
+                    }
+                } catch (apiError) {
+                    console.warn('API deletion error:', apiError);
+                    console.log('Will proceed with S3 deletion');
                 }
                 
                 // Step 2: Delete from S3 (all files in the game folder)
