@@ -838,6 +838,35 @@
                         </div>
 
                         <div class="form-group">
+                            <label class="form-label">Supported Device Orientation *</label>
+                            <select class="form-select" id="deviceOrientation" required>
+                                <option value="">Select orientation</option>
+                                <option value="Portrait">Portrait</option>
+                                <option value="Landscape">Landscape</option>
+                                <option value="Both">Both</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Control Style *</label>
+                            <select class="form-select" id="controlStyle" required>
+                                <option value="">Select control style</option>
+                                <option value="Tap & Swipe Only">Tap & Swipe Only</option>
+                                <option value="Virtual Joystick + Buttons">Virtual Joystick + Buttons</option>
+                                <option value="Twin Stick">Twin Stick</option>
+                                <option value="Single Large Button">Single Large Button</option>
+                                <option value="Rhythm Lane">Rhythm Lane</option>
+                                <option value="Gyro / Tilt">Gyro / Tilt</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Game Build ID</label>
+                            <input type="text" class="form-input" id="gameBuildId" readonly style="background-color: var(--bg-tertiary); cursor: not-allowed;">
+                            <div class="file-info">Auto-generated build ID for tracking</div>
+                        </div>
+
+                        <div class="form-group">
                             <label class="form-label">Game Files (HTML and assets) *</label>
                             <div class="upload-area" id="gameUploadArea">
                                 <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">
@@ -1700,6 +1729,9 @@
             const description = document.getElementById('gameDescription').value;
             const category = document.getElementById('gameCategory').value;
             const developer = document.getElementById('developerName').value;
+            const deviceOrientation = document.getElementById('deviceOrientation').value;
+            const controlStyle = document.getElementById('controlStyle').value;
+            const buildId = document.getElementById('gameBuildId').value;
             const files = Array.from(document.getElementById('gameFiles').files);
             const thumbnail = document.getElementById('gameThumbnail').files[0];
             
@@ -1734,7 +1766,10 @@
                         name: title,
                         category: category,
                         description: description,
-                        developer: developer
+                        developer: developer,
+                        deviceOrientation: deviceOrientation,
+                        controlStyle: controlStyle,
+                        buildId: buildId
                     }
                 };
                 
@@ -1747,6 +1782,9 @@
                     category: category,
                     description: description,
                     developer: developer,
+                    deviceOrientation: deviceOrientation,
+                    controlStyle: controlStyle,
+                    buildId: buildId,
                     gameUrl: results.gameUrl,
                     thumbnailUrl: results.thumbnailUrl,
                     s3Folder: results.gameId,
@@ -1763,6 +1801,8 @@
                 e.target.reset();
                 document.getElementById('gameFilesInfo').textContent = '';
                 document.getElementById('thumbnailInfo').textContent = '';
+                // Generate new build ID for next upload
+                document.getElementById('gameBuildId').value = generateBuildId();
                 
                 // Update games display
                 displayGames();
@@ -1942,12 +1982,25 @@
         }
 
         // Initialize everything
+        // Generate Game Build ID
+        function generateBuildId() {
+            const timestamp = Date.now();
+            const random = Math.random().toString(36).substring(2, 8);
+            return `BUILD-${timestamp}-${random.toUpperCase()}`;
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             const particleCanvas = document.getElementById('particleCanvas');
             const particleSystem = new ParticleSystem(particleCanvas);
             particleSystem.animate();
             
             const lockScreen = new LockScreen();
+            
+            // Generate build ID for the form
+            const buildIdInput = document.getElementById('gameBuildId');
+            if (buildIdInput) {
+                buildIdInput.value = generateBuildId();
+            }
             
             // Load games directly from S3 to show actual bucket contents
             // First try S3, then fall back to API if S3 fails
