@@ -1390,6 +1390,7 @@
                     },
                     body: JSON.stringify({
                         ...gameData,
+                        title: gameData.name, // API expects 'title' not 'name'
                         status: 'active',
                         publishedAt: new Date().toISOString(),
                         plays: 0,
@@ -1399,12 +1400,16 @@
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Failed to save game to database');
+                    const errorText = await response.text();
+                    console.error('API Error Response:', errorText);
+                    throw new Error(`Failed to save game to database: ${response.status} - ${errorText}`);
                 }
                 
                 return response.json();
             } catch (error) {
                 console.error('Database save error:', error);
+                // Show alert to user about the error
+                showAlert(`Warning: Game uploaded to storage but not saved to database. ${error.message}`, 'error');
                 // Continue anyway - game is uploaded to S3
                 return gameData;
             }
