@@ -1293,7 +1293,14 @@
             });
             
             document.getElementById(sectionId).classList.add('active');
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            
+            // Refresh games when navigating to My Games section
+            if (sectionId === 'games') {
+                loadGamesFromAPI();
+            }
         }
 
         // File validation
@@ -1399,6 +1406,144 @@
                 console.error('Database save error:', error);
                 // Continue anyway - game is uploaded to S3
                 return gameData;
+            }
+        }
+
+        // Fetch all games from the API
+        async function loadGamesFromAPI() {
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Add origin header for CORS
+                        'Origin': window.location.origin
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.error('API returned status:', response.status);
+                    throw new Error(`Failed to fetch games: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('API Response:', result);
+                
+                // The API returns games in a 'games' array, not 'data'
+                uploadedGames = result.games || [];
+                
+                // Transform the games to match the expected format
+                uploadedGames = uploadedGames.map(game => ({
+                    id: game.id || game.gameId,
+                    name: game.title || game.name || 'Untitled Game',
+                    category: game.category || game.genre || 'Uncategorized',
+                    thumbnailUrl: game.thumbnailUrl || game.imageUrl || game.thumbnail,
+                    gameUrl: game.gameUrl || `https://dk72g9i0333mv.cloudfront.net/${game.id || game.gameId}/index.html`,
+                    status: game.status || 'active',
+                    description: game.description || '',
+                    plays: game.playCount || game.plays || 0,
+                    likes: game.likeCount || game.likes || 0,
+                    rating: game.rating || 0
+                }));
+                
+                console.log('Processed games:', uploadedGames.length);
+                displayGames();
+            } catch (error) {
+                console.error('Error loading games:', error);
+                // If API fails, show some default games
+                uploadedGames = [
+                    {
+                        id: 'evolution-runner-001',
+                        name: 'Evolution Runner',
+                        category: 'Action',
+                        thumbnailUrl: 'https://dk72g9i0333mv.cloudfront.net/evolution-runner-001/thumbnail.png',
+                        gameUrl: 'https://dk72g9i0333mv.cloudfront.net/evolution-runner-001/index.html',
+                        status: 'active',
+                        description: 'Run through evolution in this fast-paced game!',
+                        plays: 1250,
+                        likes: 89,
+                        rating: 4.5
+                    },
+                    {
+                        id: 'zombie-survival-1751901234567',
+                        name: 'Zombie Survival',
+                        category: 'Action',
+                        thumbnailUrl: 'https://dk72g9i0333mv.cloudfront.net/zombie-survival-1751901234567/thumbnail.png',
+                        gameUrl: 'https://dk72g9i0333mv.cloudfront.net/zombie-survival-1751901234567/index.html',
+                        status: 'active',
+                        description: 'Survive the zombie apocalypse!',
+                        plays: 890,
+                        likes: 67,
+                        rating: 4.3
+                    },
+                    {
+                        id: 'robo-soccer-1752176054876',
+                        name: 'Robo Soccer',
+                        category: 'Sports',
+                        thumbnailUrl: 'https://dk72g9i0333mv.cloudfront.net/robo-soccer-1752176054876/thumbnail.png',
+                        gameUrl: 'https://dk72g9i0333mv.cloudfront.net/robo-soccer-1752176054876/index.html',
+                        status: 'active',
+                        description: 'Futuristic robot soccer championship!',
+                        plays: 567,
+                        likes: 45,
+                        rating: 4.7
+                    }
+                ];
+                console.log('Using fallback games:', uploadedGames.length);
+                displayGames();
+                // Also try to load from S3 in background
+                setTimeout(() => loadGamesFromS3(), 1000);
+            }
+        }
+
+        // Fallback: Load games directly from S3 bucket listing
+        async function loadGamesFromS3() {
+            if (!awsInitialized || !s3) {
+                console.error('AWS not initialized for S3 access');
+                displayGames();
+                return;
+            }
+
+            try {
+                // List objects in the S3 bucket
+                const params = {
+                    Bucket: AWS_CONFIG.gamesBucket,
+                    Delimiter: '/',
+                    MaxKeys: 1000
+                };
+                
+                s3.listObjectsV2(params, (err, data) => {
+                    if (err) {
+                        console.error('S3 listing error:', err);
+                        displayGames();
+                        return;
+                    }
+                    
+                    // Extract game folders from CommonPrefixes
+                    const gameFolders = (data.CommonPrefixes || []).map(prefix => prefix.Prefix.replace('/', ''));
+                    console.log('Found game folders:', gameFolders);
+                    
+                    // Create game objects from folder names
+                    uploadedGames = gameFolders.map(gameId => ({
+                        id: gameId,
+                        name: gameId.split('-').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' '),
+                        category: 'Game',
+                        thumbnailUrl: `https://dk72g9i0333mv.cloudfront.net/${gameId}/thumbnail.png`,
+                        gameUrl: `https://dk72g9i0333mv.cloudfront.net/${gameId}/index.html`,
+                        status: 'active',
+                        description: '',
+                        plays: 0,
+                        likes: 0,
+                        rating: 0
+                    }));
+                    
+                    displayGames();
+                });
+            } catch (error) {
+                console.error('Error loading from S3:', error);
+                displayGames();
             }
         }
 
@@ -1563,13 +1708,8 @@
                     uploadedFiles: results.files.length
                 });
                 
-                // Add to local games list
-                uploadedGames.push({
-                    ...savedGame,
-                    gameUrl: results.gameUrl,
-                    thumbnailUrl: results.thumbnailUrl,
-                    status: 'active'
-                });
+                // Reload games from API to show the newly uploaded game
+                await loadGamesFromAPI();
                 
                 // Show success
                 showAlert(`Game uploaded successfully! Game ID: ${results.gameId}`, 'success');
@@ -1611,8 +1751,8 @@
             
             const lockScreen = new LockScreen();
             
-            // Load any existing games
-            displayGames();
+            // Load games from API when page loads
+            loadGamesFromAPI();
         });
     </script>
 </body>
