@@ -3138,10 +3138,10 @@
             }, null, 2);
         }
 
-        function checkDebugAuth() {
+        async function checkDebugAuth() {
             const outputEl = document.getElementById('debugOutput');
             const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
-            const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
             
             if (!token) {
                 outputEl.innerHTML = `
@@ -3153,6 +3153,34 @@
                 return;
             }
             
+            // If token exists but no developer ID, fetch it automatically
+            if (!developerId && token) {
+                outputEl.innerHTML = '<div class="alert alert-info">🔄 Fetching developer ID...</div>';
+                
+                try {
+                    const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/me`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const developerInfo = await response.json();
+                        if (developerInfo && developerInfo.developerId) {
+                            developerId = developerInfo.developerId;
+                            localStorage.setItem('developerId', developerId);
+                            sessionStorage.setItem('developerId', developerId);
+                            localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+                            updateDebugStatus();
+                        }
+                    }
+                } catch (error) {
+                    console.log('Could not auto-fetch developer ID:', error);
+                }
+            }
+            
             outputEl.innerHTML = `
                 <div class="alert alert-success">
                     <strong>✅ Authentication Details</strong><br>
@@ -3160,7 +3188,7 @@
                         hasToken: true,
                         tokenLength: token.length,
                         tokenPreview: token.substring(0, 40) + '...',
-                        developerId: developerId,
+                        developerId: developerId || 'Not found - /developers/me may not be implemented',
                         tokenExpiry: 'Check JWT decode for expiry'
                     }, null, 2)}</pre>
                 </div>
@@ -3176,17 +3204,60 @@
             const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
             let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
             
-            // If no developer ID but we have a token, suggest using Fix Developer ID button
+            // If no developer ID but we have a token, automatically fetch it
             if (!developerId && token) {
-                outputEl.innerHTML = `
-                    <div class="alert alert-warning">
-                        <strong>⚠️ Developer ID Missing</strong><br>
-                        You are logged in but your developer ID is not saved.<br>
-                        <br>
-                        Click the <strong>"Fix Developer ID"</strong> button to retrieve it from the server.
-                    </div>
-                `;
-                return;
+                outputEl.innerHTML = '<div class="alert alert-info">🔄 Fetching developer ID from server...</div>';
+                
+                try {
+                    const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/me`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const developerInfo = await response.json();
+                        
+                        if (developerInfo && developerInfo.developerId) {
+                            // Save the developer ID and info
+                            localStorage.setItem('developerId', developerInfo.developerId);
+                            sessionStorage.setItem('developerId', developerInfo.developerId);
+                            localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+                            
+                            developerId = developerInfo.developerId;
+                            
+                            outputEl.innerHTML = `
+                                <div class="alert alert-success">
+                                    <strong>✅ Developer ID Retrieved</strong><br>
+                                    Automatically fetched your developer ID: <code>${developerId}</code><br>
+                                    Proceeding with API test...
+                                </div>
+                            `;
+                            
+                            // Update the status display
+                            updateDebugStatus();
+                            
+                            // Don't return - continue with the API test
+                        } else {
+                            throw new Error('No developer ID in response');
+                        }
+                    } else {
+                        throw new Error(`API returned ${response.status}`);
+                    }
+                } catch (error) {
+                    outputEl.innerHTML = `
+                        <div class="alert alert-error">
+                            <strong>❌ Could Not Fetch Developer ID</strong><br>
+                            Error: ${error.message}<br>
+                            <br>
+                            The /developers/me endpoint may not be implemented yet.<br>
+                            Please contact support or check the backend implementation.
+                        </div>
+                    `;
+                    return;
+                }
             }
             
             if (!token || !developerId) {
