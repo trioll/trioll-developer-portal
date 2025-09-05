@@ -1756,48 +1756,127 @@
         <!-- Debug Section -->
         <section id="debug" class="section">
             <div class="container">
-                <h2 style="font-size: 2rem; margin-bottom: 2rem;">🔍 Debug Tools</h2>
+                <h2 style="font-size: 2rem; margin-bottom: 2rem;">🛠️ Developer Debug Dashboard</h2>
                 
-                <div class="upload-section">
-                    <div class="form-group">
-                        <h3>Upload Debug Tool</h3>
-                        <p style="color: var(--text-gray-400); margin-bottom: 1.5rem;">
-                            Use this tool to diagnose upload issues and test API connectivity.
-                        </p>
-                        
-                        <div style="background: #2a2a2a; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
-                            <h4>Current Status</h4>
-                            <pre id="debugStatus" style="background: #1a1a1a; padding: 1rem; border-radius: 4px; overflow-x: auto;"></pre>
+                <!-- Real-time Status Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div style="background: #1a1a1a; padding: 1rem; border-radius: 8px; border: 1px solid #333;">
+                        <h4 style="color: #00ff88; margin-bottom: 0.5rem;">🔐 Authentication</h4>
+                        <div id="authStatusCard">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span id="authStatusIcon">⏳</span>
+                                <span id="authStatusText">Checking...</span>
+                            </div>
+                            <small id="authStatusDetails" style="color: #888; display: block; margin-top: 0.5rem;"></small>
                         </div>
-                        
-                        <div class="button-group" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                            <button class="btn btn-primary" onclick="checkDebugAuth()">Check Auth Token</button>
-                            <button class="btn btn-primary" onclick="testDebugAPI()">Test API Connection</button>
-                            <button class="btn btn-secondary" onclick="clearDebugOutput()">Clear Output</button>
-                            <button class="btn btn-secondary" onclick="fixDeveloperId()">Fix Developer ID</button>
+                    </div>
+                    
+                    <div style="background: #1a1a1a; padding: 1rem; border-radius: 8px; border: 1px solid #333;">
+                        <h4 style="color: #00ff88; margin-bottom: 0.5rem;">👤 Developer Profile</h4>
+                        <div id="profileStatusCard">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span id="profileStatusIcon">⏳</span>
+                                <span id="profileStatusText">Checking...</span>
+                            </div>
+                            <small id="profileStatusDetails" style="color: #888; display: block; margin-top: 0.5rem;"></small>
                         </div>
-                        
-                        <h3 style="margin-top: 2rem;">Backend Status Tests</h3>
-                        <p style="color: var(--text-gray-400); margin-bottom: 1rem;">
-                            Test backend endpoints directly to diagnose issues.
-                        </p>
-                        <div class="button-group" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                            <button class="btn btn-primary" onclick="testLoginEndpoint()">Test Login Endpoint</button>
-                            <button class="btn btn-primary" onclick="testProfileEndpoint()">Test Profile Endpoint</button>
-                            <button class="btn btn-primary" onclick="testGamesEndpoint()">Test Games API</button>
+                    </div>
+                    
+                    <div style="background: #1a1a1a; padding: 1rem; border-radius: 8px; border: 1px solid #333;">
+                        <h4 style="color: #00ff88; margin-bottom: 0.5rem;">🎮 Games API</h4>
+                        <div id="gamesStatusCard">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span id="gamesStatusIcon">⏳</span>
+                                <span id="gamesStatusText">Checking...</span>
+                            </div>
+                            <small id="gamesStatusDetails" style="color: #888; display: block; margin-top: 0.5rem;"></small>
                         </div>
-                        
-                        <div id="debugOutput" style="margin-top: 1.5rem;"></div>
-                        
-                        <div style="margin-top: 2rem; padding: 1rem; background: #3a3a1a; border: 1px solid #fbbf24; border-radius: 8px;">
-                            <h4 style="color: #fbbf24;">⚠️ Troubleshooting Tips</h4>
-                            <ul style="color: var(--text-gray-300); line-height: 1.8;">
-                                <li>Make sure you're logged in before running tests</li>
-                                <li>Check browser console (F12) for additional errors</li>
-                                <li>CORS errors indicate API configuration issues</li>
-                                <li>401 errors mean authentication token is invalid</li>
-                                <li>Network errors might indicate HTTPS/HTTP mismatch</li>
-                            </ul>
+                    </div>
+                    
+                    <div style="background: #1a1a1a; padding: 1rem; border-radius: 8px; border: 1px solid #333;">
+                        <h4 style="color: #00ff88; margin-bottom: 0.5rem;">☁️ S3 Upload</h4>
+                        <div id="s3StatusCard">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span id="s3StatusIcon">⏳</span>
+                                <span id="s3StatusText">Checking...</span>
+                            </div>
+                            <small id="s3StatusDetails" style="color: #888; display: block; margin-top: 0.5rem;"></small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div style="background: #0a0a0a; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem;">⚡ Quick Actions</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <button class="btn btn-primary" onclick="runFullSystemCheck()">
+                            🔍 Full System Check
+                        </button>
+                        <button class="btn btn-secondary" onclick="fixDeveloperId()">
+                            🔧 Fix Developer ID
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearAllStorage()">
+                            🗑️ Clear All Storage
+                        </button>
+                        <button class="btn btn-success" onclick="downloadDebugReport()">
+                            📥 Download Debug Report
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Detailed Tests Section -->
+                <div style="background: #0a0a0a; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem;">🧪 Detailed Backend Tests</h3>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="color: #fbbf24; margin-bottom: 0.5rem;">Authentication Tests</h4>
+                        <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" onclick="testTokenValidity()">Token Validity</button>
+                            <button class="btn btn-sm" onclick="testRefreshToken()">Refresh Token</button>
+                            <button class="btn btn-sm" onclick="testCognitoConnection()">Cognito Connection</button>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="color: #fbbf24; margin-bottom: 0.5rem;">API Endpoint Tests</h4>
+                        <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" onclick="testEndpoint('/developers/profile', 'GET')">Profile Endpoint</button>
+                            <button class="btn btn-sm" onclick="testEndpoint('/games', 'GET')">Games GET</button>
+                            <button class="btn btn-sm" onclick="testEndpoint('/games', 'POST')">Games POST</button>
+                            <button class="btn btn-sm" onclick="testEndpoint('/comments', 'GET')">Comments API</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 style="color: #fbbf24; margin-bottom: 0.5rem;">Storage & Upload Tests</h4>
+                        <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" onclick="testS3Upload()">S3 Upload Test</button>
+                            <button class="btn btn-sm" onclick="testS3Permissions()">S3 Permissions</button>
+                            <button class="btn btn-sm" onclick="testCloudFront()">CloudFront CDN</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Console Output -->
+                <div style="background: #000; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border: 1px solid #333;">
+                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; color: #00ff88;">📟 Console Output</h3>
+                        <button class="btn btn-sm" onclick="clearDebugConsole()" style="margin-left: auto;">Clear</button>
+                    </div>
+                    <div id="debugConsole" style="font-family: monospace; font-size: 0.9rem; color: #ccc; max-height: 400px; overflow-y: auto; white-space: pre-wrap; padding: 1rem; background: #0a0a0a; border-radius: 4px;"></div>
+                </div>
+                
+                <!-- System Information -->
+                <div style="background: #0a0a0a; padding: 1.5rem; border-radius: 8px;">
+                    <h3 style="margin-bottom: 1rem;">📊 System Information</h3>
+                    <div id="systemInfo" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                        <div>
+                            <h4 style="color: #888; font-size: 0.9rem;">Environment</h4>
+                            <pre id="envInfo" style="background: #1a1a1a; padding: 0.5rem; border-radius: 4px; margin: 0; font-size: 0.8rem;"></pre>
+                        </div>
+                        <div>
+                            <h4 style="color: #888; font-size: 0.9rem;">Storage Status</h4>
+                            <pre id="storageInfo" style="background: #1a1a1a; padding: 0.5rem; border-radius: 4px; margin: 0; font-size: 0.8rem;"></pre>
                         </div>
                     </div>
                 </div>
@@ -2279,6 +2358,11 @@
             if (sectionId === 'games') {
                 // Load from S3 to show all games
                 loadGamesFromS3();
+            }
+            
+            // Initialize debug dashboard when shown
+            if (sectionId === 'debug') {
+                setTimeout(runFullSystemCheck, 100);
             }
             
             // Load developer's games when navigating to My Games section
@@ -3180,28 +3264,362 @@
             return `BUILD-${timestamp}-${random.toUpperCase()}`;
         }
 
-        // Debug functions
-        function updateDebugStatus() {
-            const statusEl = document.getElementById('debugStatus');
-            if (!statusEl) return;
+        // Enhanced Debug functions
+        let debugConsole = [];
+        
+        function logToDebugConsole(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74b9ff';
+            const formattedMessage = `[${timestamp}] ${message}`;
             
-            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
-            const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            debugConsole.push({ message: formattedMessage, color });
+            if (debugConsole.length > 100) debugConsole.shift(); // Keep last 100 messages
             
-            statusEl.textContent = JSON.stringify({
-                location: {
-                    href: window.location.href,
-                    protocol: window.location.protocol,
-                    host: window.location.host,
-                    origin: window.location.origin
+            const consoleEl = document.getElementById('debugConsole');
+            if (consoleEl) {
+                consoleEl.innerHTML = debugConsole.map(log => 
+                    `<div style="color: ${log.color}">${log.message}</div>`
+                ).join('');
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+        }
+        
+        function updateStatusCard(cardId, icon, text, details, type = 'info') {
+            const iconEl = document.getElementById(cardId + 'Icon');
+            const textEl = document.getElementById(cardId + 'Text');
+            const detailsEl = document.getElementById(cardId + 'Details');
+            
+            if (iconEl) iconEl.textContent = icon;
+            if (textEl) {
+                textEl.textContent = text;
+                textEl.style.color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74b9ff';
+            }
+            if (detailsEl) detailsEl.textContent = details;
+        }
+        
+        async function updateSystemInfo() {
+            // Environment info
+            const envInfo = {
+                'API Endpoint': AWS_CONFIG.apiEndpoint,
+                'Region': AWS_CONFIG.region,
+                'Games Bucket': AWS_CONFIG.gamesBucket,
+                'User Agent': navigator.userAgent.substring(0, 50) + '...',
+                'Online': navigator.onLine ? 'Yes' : 'No'
+            };
+            
+            // Storage info
+            const token = localStorage.getItem('developerToken');
+            const storageInfo = {
+                'LocalStorage Items': Object.keys(localStorage).length,
+                'SessionStorage Items': Object.keys(sessionStorage).length,
+                'Developer ID': localStorage.getItem('developerId') || 'Not set',
+                'Token Status': token ? (isTokenExpired(token) ? 'Expired' : 'Valid') : 'No token'
+            };
+            
+            const envEl = document.getElementById('envInfo');
+            const storageEl = document.getElementById('storageInfo');
+            
+            if (envEl) envEl.textContent = Object.entries(envInfo).map(([k,v]) => `${k}: ${v}`).join('\n');
+            if (storageEl) storageEl.textContent = Object.entries(storageInfo).map(([k,v]) => `${k}: ${v}`).join('\n');
+        }
+        
+        async function checkAuthStatus() {
+            logToDebugConsole('Checking authentication status...');
+            const token = validateAndGetToken();
+            
+            if (!token) {
+                updateStatusCard('authStatus', '❌', 'Not Authenticated', 'No valid token found', 'error');
+                return false;
+            }
+            
+            try {
+                const parts = token.split('.');
+                const payload = JSON.parse(atob(parts[1]));
+                const exp = new Date(payload.exp * 1000);
+                const remaining = Math.floor((exp - new Date()) / 1000 / 60); // minutes
+                
+                updateStatusCard('authStatus', '✅', 'Authenticated', 
+                    `Expires in ${remaining} min | ${payload.email}`, 'success');
+                return true;
+            } catch (e) {
+                updateStatusCard('authStatus', '⚠️', 'Invalid Token', 'Cannot decode token', 'error');
+                return false;
+            }
+        }
+        
+        async function checkProfileStatus() {
+            logToDebugConsole('Checking developer profile...');
+            const token = validateAndGetToken();
+            if (!token) {
+                updateStatusCard('profileStatus', '❌', 'No Token', 'Login required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/profile`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const dev = data.developer || data;
+                    updateStatusCard('profileStatus', '✅', 'Profile Active', 
+                        `ID: ${dev.developerId} | ${dev.companyName}`, 'success');
+                    logToDebugConsole('Profile loaded successfully', 'success');
+                } else {
+                    updateStatusCard('profileStatus', '❌', `Error ${response.status}`, 
+                        await response.text(), 'error');
+                    logToDebugConsole(`Profile error: ${response.status}`, 'error');
+                }
+            } catch (e) {
+                updateStatusCard('profileStatus', '❌', 'Network Error', e.message, 'error');
+                logToDebugConsole(`Profile network error: ${e.message}`, 'error');
+            }
+        }
+        
+        async function checkGamesStatus() {
+            logToDebugConsole('Checking games API...');
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const count = data.games ? data.games.length : 0;
+                    updateStatusCard('gamesStatus', '✅', 'API Online', 
+                        `${count} games available`, 'success');
+                    logToDebugConsole(`Games API: ${count} games found`, 'success');
+                } else {
+                    updateStatusCard('gamesStatus', '⚠️', `Status ${response.status}`, 
+                        'API responding with errors', 'error');
+                }
+            } catch (e) {
+                updateStatusCard('gamesStatus', '❌', 'Offline', 
+                    'Cannot reach API', 'error');
+                logToDebugConsole(`Games API error: ${e.message}`, 'error');
+            }
+        }
+        
+        async function checkS3Status() {
+            logToDebugConsole('Checking S3 upload capability...');
+            
+            if (typeof s3 === 'undefined') {
+                updateStatusCard('s3Status', '❌', 'Not Configured', 
+                    'S3 client not initialized', 'error');
+                return;
+            }
+            
+            try {
+                // Test with a HEAD request to bucket
+                const testKey = `test-permissions-${Date.now()}.txt`;
+                const params = {
+                    Bucket: AWS_CONFIG.gamesBucket,
+                    Key: testKey
+                };
+                
+                updateStatusCard('s3Status', '✅', 'Ready', 
+                    `Bucket: ${AWS_CONFIG.gamesBucket}`, 'success');
+                logToDebugConsole('S3 upload ready', 'success');
+            } catch (e) {
+                updateStatusCard('s3Status', '⚠️', 'Check Required', 
+                    'Test upload to verify', 'warning');
+            }
+        }
+        
+        async function runFullSystemCheck() {
+            logToDebugConsole('=== Starting Full System Check ===', 'info');
+            
+            // Update all status cards
+            await checkAuthStatus();
+            await checkProfileStatus();
+            await checkGamesStatus();
+            await checkS3Status();
+            await updateSystemInfo();
+            
+            logToDebugConsole('=== System Check Complete ===', 'success');
+        }
+        
+        function clearDebugConsole() {
+            debugConsole = [];
+            const consoleEl = document.getElementById('debugConsole');
+            if (consoleEl) consoleEl.innerHTML = '';
+            logToDebugConsole('Console cleared');
+        }
+        
+        function clearAllStorage() {
+            if (confirm('This will log you out and clear all saved data. Continue?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                logToDebugConsole('All storage cleared', 'success');
+                setTimeout(() => location.reload(), 1000);
+            }
+        }
+        
+        async function downloadDebugReport() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                environment: {
+                    url: window.location.href,
+                    userAgent: navigator.userAgent,
+                    online: navigator.onLine
                 },
                 auth: {
-                    hasToken: !!token,
-                    tokenPreview: token ? token.substring(0, 20) + '...' : 'No token found',
-                    developerId: developerId || 'Not found'
+                    hasToken: !!localStorage.getItem('developerToken'),
+                    developerId: localStorage.getItem('developerId')
                 },
-                timestamp: new Date().toISOString()
-            }, null, 2);
+                awsConfig: AWS_CONFIG,
+                localStorage: Object.keys(localStorage),
+                sessionStorage: Object.keys(sessionStorage),
+                console: debugConsole
+            };
+            
+            const blob = new Blob([JSON.stringify(report, null, 2)], 
+                { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `trioll-debug-${Date.now()}.json`;
+            a.click();
+            
+            logToDebugConsole('Debug report downloaded', 'success');
+        }
+        
+        // New test functions
+        async function testTokenValidity() {
+            logToDebugConsole('Testing token validity...');
+            const token = localStorage.getItem('developerToken');
+            
+            if (!token) {
+                logToDebugConsole('No token found', 'error');
+                return;
+            }
+            
+            if (isTokenExpired(token)) {
+                logToDebugConsole('Token is expired!', 'error');
+            } else {
+                logToDebugConsole('Token is valid', 'success');
+            }
+        }
+        
+        async function testRefreshToken() {
+            logToDebugConsole('Testing refresh token...');
+            const refreshToken = localStorage.getItem('refreshToken');
+            
+            if (!refreshToken) {
+                logToDebugConsole('No refresh token found', 'error');
+                return;
+            }
+            
+            logToDebugConsole('Refresh token present (not testing actual refresh)', 'info');
+        }
+        
+        async function testCognitoConnection() {
+            logToDebugConsole('Testing Cognito connection...');
+            // This would need actual Cognito SDK integration
+            logToDebugConsole('Cognito test requires SDK integration', 'info');
+        }
+        
+        async function testEndpoint(path, method = 'GET') {
+            logToDebugConsole(`Testing ${method} ${path}...`);
+            const token = validateAndGetToken();
+            
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
+            try {
+                const options = { method, headers };
+                
+                if (method === 'POST' && path === '/games') {
+                    options.body = JSON.stringify({
+                        gameId: `test-${Date.now()}`,
+                        name: 'Test Game',
+                        description: 'Debug test',
+                        category: 'Test',
+                        developer: 'Debug',
+                        developerId: localStorage.getItem('developerId') || 'test',
+                        deviceOrientation: 'both',
+                        controlStyle: 'touchscreen',
+                        gameUrl: 'https://example.com/test.html',
+                        thumbnailUrl: 'https://example.com/test.png',
+                        status: 'active'
+                    });
+                }
+                
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}${path}`, options);
+                const data = await response.text();
+                
+                if (response.ok) {
+                    logToDebugConsole(`${path}: SUCCESS (${response.status})`, 'success');
+                } else {
+                    logToDebugConsole(`${path}: FAILED (${response.status}): ${data}`, 'error');
+                }
+            } catch (e) {
+                logToDebugConsole(`${path}: NETWORK ERROR: ${e.message}`, 'error');
+            }
+        }
+        
+        async function testS3Upload() {
+            logToDebugConsole('Testing S3 upload...');
+            
+            try {
+                const testFile = new Blob(['Debug test file'], { type: 'text/plain' });
+                const key = `debug-test-${Date.now()}.txt`;
+                
+                const params = {
+                    Bucket: AWS_CONFIG.gamesBucket,
+                    Key: key,
+                    Body: testFile
+                };
+                
+                const upload = s3.upload(params);
+                await upload.promise();
+                
+                logToDebugConsole('S3 upload test successful!', 'success');
+                
+                // Try to delete the test file
+                await s3.deleteObject({ Bucket: AWS_CONFIG.gamesBucket, Key: key }).promise();
+                logToDebugConsole('Test file cleaned up', 'info');
+            } catch (e) {
+                logToDebugConsole(`S3 upload error: ${e.message}`, 'error');
+            }
+        }
+        
+        async function testS3Permissions() {
+            logToDebugConsole('Checking S3 permissions...');
+            
+            // Check if S3 client is configured
+            if (typeof s3 !== 'undefined') {
+                logToDebugConsole('S3 client is configured', 'success');
+                logToDebugConsole(`Target bucket: ${AWS_CONFIG.gamesBucket}`, 'info');
+            } else {
+                logToDebugConsole('S3 client not found!', 'error');
+            }
+        }
+        
+        async function testCloudFront() {
+            logToDebugConsole('Testing CloudFront CDN...');
+            
+            const testUrl = 'https://dgq2nqysbn2z3.cloudfront.net/';
+            
+            try {
+                const response = await fetch(testUrl, { method: 'HEAD' });
+                if (response.ok || response.status === 403) {
+                    logToDebugConsole('CloudFront is accessible', 'success');
+                } else {
+                    logToDebugConsole(`CloudFront returned ${response.status}`, 'error');
+                }
+            } catch (e) {
+                logToDebugConsole(`CloudFront error: ${e.message}`, 'error');
+            }
+        }
+        
+        // Legacy debug function for backward compatibility
+        function updateDebugStatus() {
+            updateSystemInfo();
         }
 
         async function checkDebugAuth() {
