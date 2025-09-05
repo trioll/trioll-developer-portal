@@ -2,7 +2,9 @@
 class AuthService {
     constructor() {
         this.apiEndpoint = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
-        this.clientId = '5joogquqr4jgukp7mncgp3g23h'; // Developer portal client ID
+        // IMPORTANT: Using mobile app client ID as backend expects it
+        // The backend Lambda uses: bft50gui77sdq2n4lcio4onql
+        this.clientId = 'bft50gui77sdq2n4lcio4onql'; // Using mobile app client ID (backend expects this)
         
         // Check both localStorage (remember me) and sessionStorage
         this.token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');

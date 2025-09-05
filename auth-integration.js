@@ -81,17 +81,33 @@ async function handleLogin(event) {
     loginError.classList.remove('show');
     
     try {
+        console.log('[AUTH] Starting login process...');
         const result = await auth.login(email, password, rememberMe);
         
         if (result.success) {
+            console.log('[AUTH] Login successful, checking token storage...');
+            const storedToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            console.log('[AUTH] Token stored:', storedToken ? 'YES' : 'NO');
+            console.log('[AUTH] Token preview:', storedToken ? storedToken.substring(0, 50) + '...' : 'N/A');
+            
             // Hide auth screen and show main content
             hideAuthScreen();
             
             // Populate developer info in upload form
             if (auth.isAuthenticated()) {
+                console.log('[AUTH] Auth service reports authenticated');
                 auth.populateUploadForm();
+            } else {
+                console.error('[AUTH] Auth service reports NOT authenticated despite successful login');
             }
+            
+            // Force re-check of token after a brief delay
+            setTimeout(() => {
+                const tokenAfterDelay = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                console.log('[AUTH] Token check after 500ms:', tokenAfterDelay ? 'YES' : 'NO');
+            }, 500);
         } else {
+            console.error('[AUTH] Login failed:', result.message);
             loginError.textContent = result.message;
             loginError.classList.add('show');
         }

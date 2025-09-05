@@ -1,5 +1,25 @@
 # Authentication Fix Documentation - September 5, 2025
 
+## UPDATE 2: Fixed Client ID Configuration (22:10 GMT)
+
+### Second Issue Discovered
+Even after synchronizing client IDs, authentication was still failing because:
+- The backend Lambda expects the **mobile app client ID**: `bft50gui77sdq2n4lcio4onql`
+- The developer portal was using its own client ID: `5joogquqr4jgukp7mncgp3g23h`
+
+### Solution Applied
+Updated both auth-service.js and index.html to use the mobile app client ID that the backend expects:
+```javascript
+// Both files now use:
+this.clientId = 'bft50gui77sdq2n4lcio4onql'; // Mobile app client ID
+```
+
+This is necessary because the backend Lambda is shared between the mobile app and developer portal, and it's hardcoded to expect the mobile app's client ID.
+
+---
+
+# Original Authentication Fix Documentation - September 5, 2025
+
 ## Problem Discovered
 The developer portal was using **mismatched Cognito client IDs** across different components:
 
