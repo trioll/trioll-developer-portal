@@ -1914,16 +1914,26 @@
             }
             
             if (isTokenExpired(token)) {
-                console.log('Token expired, clearing storage');
-                // Clear expired tokens
-                localStorage.removeItem('developerToken');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('developerId');
-                localStorage.removeItem('developerInfo');
-                sessionStorage.removeItem('developerToken');
-                sessionStorage.removeItem('refreshToken');
-                sessionStorage.removeItem('developerId');
-                sessionStorage.removeItem('developerInfo');
+                console.log('Token expired');
+                const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken');
+                
+                if (refreshToken) {
+                    // TODO: Implement refresh token flow
+                    console.log('Refresh token available - manual refresh needed');
+                    // For now, clear only the expired token, not refresh token
+                    localStorage.removeItem('developerToken');
+                    sessionStorage.removeItem('developerToken');
+                } else {
+                    // No refresh token, clear everything
+                    localStorage.removeItem('developerToken');
+                    localStorage.removeItem('refreshToken');
+                    localStorage.removeItem('developerId');
+                    localStorage.removeItem('developerInfo');
+                    sessionStorage.removeItem('developerToken');
+                    sessionStorage.removeItem('refreshToken');
+                    sessionStorage.removeItem('developerId');
+                    sessionStorage.removeItem('developerInfo');
+                }
                 
                 // Show login form
                 showTab('login');
@@ -2508,6 +2518,7 @@
                         ...gameData,
                         gameId: gameData.gameId || gameData.id, // Include gameId
                         name: gameData.name || gameData.title, // API expects 'name' field
+                        gameStage: gameData.gameStage || 'production', // Add required field
                         status: 'active', // Developer can control if game is immediately active
                         publishedAt: new Date().toISOString()
                         // Backend will initialize: plays, likes, rating, commentCount
@@ -2989,7 +3000,7 @@
                         developer: developer,
                         deviceOrientation: deviceOrientation || 'both',
                         controlStyle: controlStyle || 'touchscreen',
-                        gameStage: gameStage,
+                        gameStage: gameStage || 'production',
                         deviceCompatibility: deviceCompatibility,
                         buildId: buildId
                     }
@@ -3520,13 +3531,21 @@
         
         async function testEndpoint(path, method = 'GET') {
             logToDebugConsole(`Testing ${method} ${path}...`);
-            const token = validateAndGetToken();
+            const token = localStorage.getItem('developerToken');
+            const hasToken = !!token;
+            const isExpired = token ? isTokenExpired(token) : false;
+            
+            logToDebugConsole(`Token status: ${hasToken ? (isExpired ? 'Expired' : 'Valid') : 'None'}`, 'info');
             
             const headers = {
                 'Content-Type': 'application/json'
             };
             
-            if (token) {
+            if (token && !isExpired) {
+                headers['Authorization'] = `Bearer ${token}`;
+                logToDebugConsole('Added Authorization header', 'info');
+            } else if (token && isExpired) {
+                logToDebugConsole('Token is expired, sending anyway to test', 'warning');
                 headers['Authorization'] = `Bearer ${token}`;
             }
             
@@ -3543,10 +3562,13 @@
                         developerId: localStorage.getItem('developerId') || 'test',
                         deviceOrientation: 'both',
                         controlStyle: 'touchscreen',
+                        gameStage: 'production',
                         gameUrl: 'https://example.com/test.html',
                         thumbnailUrl: 'https://example.com/test.png',
-                        status: 'active'
+                        status: 'active',
+                        publishedAt: new Date().toISOString()
                     });
+                    logToDebugConsole('Request body: ' + options.body, 'info');
                 }
                 
                 const response = await fetch(`${AWS_CONFIG.apiEndpoint}${path}`, options);
@@ -3554,6 +3576,9 @@
                 
                 if (response.ok) {
                     logToDebugConsole(`${path}: SUCCESS (${response.status})`, 'success');
+                    if (path === '/developers/profile' && !token) {
+                        logToDebugConsole('⚠️ WARNING: Profile returned 200 without auth token!', 'error');
+                    }
                 } else {
                     logToDebugConsole(`${path}: FAILED (${response.status}): ${data}`, 'error');
                 }
@@ -3565,6 +3590,24 @@
         async function testS3Upload() {
             logToDebugConsole('Testing S3 upload...');
             
+            if (!s3) {
+                logToDebugConsole('S3 client not initialized. Initializing AWS...', 'info');
+                initializeAWS();
+                
+                // Wait a bit for initialization
+                setTimeout(() => {
+                    if (!s3) {
+                        logToDebugConsole('S3 still not initialized. Check AWS credentials.', 'error');
+                        return;
+                    }
+                    performS3UploadTest();
+                }, 1000);
+            } else {
+                performS3UploadTest();
+            }
+        }
+        
+        async function performS3UploadTest() {
             try {
                 const testFile = new Blob(['Debug test file'], { type: 'text/plain' });
                 const key = `debug-test-${Date.now()}.txt`;
