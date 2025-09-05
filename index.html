@@ -2615,7 +2615,10 @@
                 // Get auth token for API call with validation
                 const authToken = validateAndGetToken();
                 if (!authToken) {
-                    throw new Error('Session expired. Please login again.');
+                    console.warn('No auth token found. Game will be uploaded to S3 but not saved to database.');
+                    // Return the game data without saving to API
+                    // This allows upload to succeed even when not logged in
+                    return gameData;
                 }
                 
                 // Determine the proper origin
