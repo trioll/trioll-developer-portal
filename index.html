@@ -1651,6 +1651,21 @@
 
                         <div class="form-group">
                             <label class="form-label">Game Files (HTML and assets) *</label>
+                            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                                <p style="color: #60a5fa; font-weight: 600; margin-bottom: 8px;">📋 File Format Requirements:</p>
+                                <ul style="color: #93bbfc; font-size: 0.9rem; margin: 0; padding-left: 20px;">
+                                    <li>Main game file MUST be named <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px;">index.html</code></li>
+                                    <li>Upload as folder (select all files) or ZIP file</li>
+                                    <li>Include all assets (images, CSS, JS) your game needs</li>
+                                    <li>File structure example:
+                                        <pre style="background: rgba(0,0,0,0.2); padding: 8px; margin: 5px 0; border-radius: 4px; font-size: 0.85rem;">YourGame/
+├── index.html (required)
+├── style.css
+├── script.js
+└── images/</pre>
+                                    </li>
+                                </ul>
+                            </div>
                             <div class="upload-area" id="gameUploadArea">
                                 <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">
                                     Drop your game files here
@@ -1668,6 +1683,12 @@
 
                         <div class="form-group">
                             <label class="form-label">Thumbnail Image *</label>
+                            <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                                <p style="color: #4ade80; font-size: 0.9rem; margin: 0;">
+                                    🖼️ <strong>Recommended:</strong> Name your thumbnail <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px;">thumbnail.png</code> or <code>thumbnail.jpg</code>
+                                    <br>📐 <strong>Size:</strong> 300x300px or larger (square aspect ratio works best)
+                                </p>
+                            </div>
                             <input type="file" class="form-input" id="gameThumbnail" accept="image/*" required>
                             <div class="file-info" id="thumbnailInfo"></div>
                         </div>
@@ -2793,7 +2814,7 @@
                     gameUrl: results.gameUrl,
                     thumbnailUrl: results.thumbnailUrl,
                     s3Folder: results.gameId,
-                    uploadedFiles: results.files.length,
+                    uploadedFiles: results.files ? results.files.length : 0,
                     uploadedAt: new Date().toISOString()
                 });
                 
