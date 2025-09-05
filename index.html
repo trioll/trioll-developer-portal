@@ -3342,6 +3342,109 @@
             }
         }
 
+        // Handle login form submission
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
+            const loginError = document.getElementById('loginError');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Signing in...';
+            loginError.style.display = 'none';
+            
+            try {
+                // This is a placeholder - in production, this would call your actual auth service
+                // For now, we'll simulate a successful login
+                // TODO: Replace with actual Cognito authentication
+                
+                // Simulate API call delay
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // For demo purposes, we'll create a fake token
+                const fakeToken = 'eyJraWQiOiJkb2U3cmkx' + btoa(email + ':' + Date.now());
+                
+                // Store the token
+                if (rememberMe) {
+                    localStorage.setItem('developerToken', fakeToken);
+                } else {
+                    sessionStorage.setItem('developerToken', fakeToken);
+                }
+                
+                // Try to fetch developer info from API
+                try {
+                    const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${fakeToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const developerInfo = await response.json();
+                        
+                        // Save developer info
+                        if (rememberMe) {
+                            localStorage.setItem('developerId', developerInfo.developerId);
+                            localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+                        } else {
+                            sessionStorage.setItem('developerId', developerInfo.developerId);
+                            sessionStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+                        }
+                    }
+                } catch (error) {
+                    console.log('Could not fetch developer info:', error);
+                    // Continue anyway - user can use Fix Developer ID if needed
+                }
+                
+                // Hide login modal
+                document.getElementById('authModal').style.display = 'none';
+                
+                // Show authenticated sections
+                document.querySelectorAll('.auth-required').forEach(el => {
+                    el.style.display = 'block';
+                });
+                
+                // Populate developer ID if on upload page
+                if (typeof populateDeveloperId === 'function') {
+                    populateDeveloperId();
+                }
+                
+                // Refresh the current section
+                const activeSection = document.querySelector('.section.active');
+                if (activeSection && activeSection.id === 'dashboard') {
+                    // Reload dashboard data
+                    showSection('dashboard');
+                }
+                
+            } catch (error) {
+                loginError.textContent = 'Login failed: ' + error.message;
+                loginError.style.display = 'block';
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+            
+            return false;
+        }
+        
+        // Handle signup form submission
+        async function handleSignup(event) {
+            event.preventDefault();
+            
+            // TODO: Implement signup logic
+            alert('Signup functionality will be implemented soon!');
+            
+            return false;
+        }
+        
+        // Make functions globally available
+        window.handleLogin = handleLogin;
+        window.handleSignup = handleSignup;
+
         window.addEventListener('DOMContentLoaded', () => {
             const starfieldCanvas = document.getElementById('starfieldCanvas');
             const starfieldSystem = new StarfieldSystem(starfieldCanvas);
