@@ -4211,6 +4211,12 @@
                 const verifyToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
                 console.log('Verification - token in storage:', verifyToken ? 'YES' : 'NO');
                 
+                // Reinitialize AWS with authenticated credentials
+                console.log('Reinitializing AWS with authenticated credentials...');
+                setTimeout(() => {
+                    initializeAWS();
+                }, 100);
+                
                 // Store developer info if provided
                 if (developer && developer.developerId) {
                     if (rememberMe) {
