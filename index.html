@@ -3503,8 +3503,76 @@
         async function handleSignup(event) {
             event.preventDefault();
             
-            // TODO: Implement signup logic
-            alert('Signup functionality will be implemented soon!');
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const companyName = document.getElementById('companyName').value;
+            const signupError = document.getElementById('signupError');
+            const signupBtn = document.getElementById('signupBtn');
+            
+            signupBtn.disabled = true;
+            signupBtn.textContent = 'Creating account...';
+            signupError.style.display = 'none';
+            
+            try {
+                // Call the backend signup endpoint
+                const signupResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password, companyName })
+                });
+                
+                const signupData = await signupResponse.json();
+                
+                if (!signupResponse.ok || !signupData.success) {
+                    throw new Error(signupData.message || 'Signup failed');
+                }
+                
+                // Auto-login after successful signup
+                const loginResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const loginData = await loginResponse.json();
+                
+                if (loginResponse.ok && loginData.success) {
+                    // Store tokens and developer info
+                    const { tokens, developer } = loginData;
+                    localStorage.setItem('developerToken', tokens.idToken);
+                    localStorage.setItem('refreshToken', tokens.refreshToken);
+                    
+                    if (developer && developer.developerId) {
+                        localStorage.setItem('developerId', developer.developerId);
+                        localStorage.setItem('developerInfo', JSON.stringify(developer));
+                    }
+                    
+                    // Hide modal and refresh
+                    document.getElementById('authModal').style.display = 'none';
+                    document.querySelectorAll('.auth-required').forEach(el => {
+                        el.style.display = 'block';
+                    });
+                    
+                    // Show welcome message
+                    showAlert(`Welcome ${companyName}! Your developer ID is ${developer.developerId}`, 'success');
+                    
+                    // Navigate to dashboard
+                    showSection('dashboard');
+                } else {
+                    throw new Error('Account created but login failed. Please try logging in manually.');
+                }
+                
+            } catch (error) {
+                signupError.textContent = error.message;
+                signupError.style.display = 'block';
+            } finally {
+                signupBtn.disabled = false;
+                signupBtn.textContent = 'Create Account';
+            }
             
             return false;
         }
