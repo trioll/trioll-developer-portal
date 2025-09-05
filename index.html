@@ -1855,6 +1855,14 @@
                             <button class="btn btn-sm" onclick="testCloudFront()">CloudFront CDN</button>
                         </div>
                     </div>
+                    
+                    <div style="margin-top: 1rem;">
+                        <h4 style="color: #ef4444; margin-bottom: 0.5rem;">🚨 Emergency Actions</h4>
+                        <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" style="background: #ef4444;" onclick="forceReloadWithoutCache()">Force Reload (No Cache)</button>
+                            <button class="btn btn-sm" style="background: #ef4444;" onclick="clearAllStorageAndReload()">Clear All & Reload</button>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Console Output -->
@@ -1910,7 +1918,40 @@
             let token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
             
             if (!token) {
+                console.log('validateAndGetToken: No token found in storage');
                 return null;
+            }
+            
+            console.log('validateAndGetToken: Token found, checking validity...');
+            
+            // Check if token was just created (within last 60 seconds)
+            try {
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1]));
+                    const iat = payload.iat;
+                    const exp = payload.exp;
+                    const now = Math.floor(Date.now() / 1000);
+                    const tokenAge = now - iat;
+                    const timeUntilExpiry = exp - now;
+                    
+                    console.log(`Token age: ${tokenAge}s, Time until expiry: ${timeUntilExpiry}s`);
+                    
+                    // If token was created in the last 60 seconds, trust it without expiry check
+                    if (tokenAge < 60) {
+                        console.log('Token is fresh (created ' + tokenAge + ' seconds ago), skipping expiry check');
+                        return token;
+                    }
+                    
+                    // Also don't clear tokens that still have more than 5 minutes of life
+                    if (timeUntilExpiry > 300) {
+                        console.log('Token still has ' + Math.floor(timeUntilExpiry / 60) + ' minutes until expiry');
+                        return token;
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing token for age check:', e);
+                // If we can't decode the token, proceed with normal validation
             }
             
             if (isTokenExpired(token)) {
@@ -4125,13 +4166,20 @@
                 
                 // Store the auth token (use ID token for API auth)
                 const authToken = tokens.idToken;
+                console.log('Storing auth token, length:', authToken ? authToken.length : 'none');
                 if (rememberMe) {
                     localStorage.setItem('developerToken', authToken);
                     localStorage.setItem('refreshToken', tokens.refreshToken);
+                    console.log('Token saved to localStorage');
                 } else {
                     sessionStorage.setItem('developerToken', authToken);
                     sessionStorage.setItem('refreshToken', tokens.refreshToken);
+                    console.log('Token saved to sessionStorage');
                 }
+                
+                // Verify token was saved
+                const verifyToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                console.log('Verification - token in storage:', verifyToken ? 'YES' : 'NO');
                 
                 // Store developer info if provided
                 if (developer && developer.developerId) {
@@ -4254,16 +4302,61 @@
             return false;
         }
         
+        // Emergency actions
+        function forceReloadWithoutCache() {
+            console.log('Force reloading without cache...');
+            // Add timestamp to force bypass cache
+            const timestamp = new Date().getTime();
+            const url = window.location.href.split('?')[0] + '?nocache=' + timestamp;
+            window.location.href = url;
+        }
+        
+        function clearAllStorageAndReload() {
+            if (confirm('This will clear ALL stored data and reload the page. Continue?')) {
+                console.log('Clearing all storage...');
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Clear cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                // Force reload without cache
+                forceReloadWithoutCache();
+            }
+        }
+        
         // Make functions globally available
         window.handleLogin = handleLogin;
         window.handleSignup = handleSignup;
+        window.forceReloadWithoutCache = forceReloadWithoutCache;
+        window.clearAllStorageAndReload = clearAllStorageAndReload;
 
         window.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded - initializing Trioll Developer Portal');
+            
+            // Initialize visual effects
             const starfieldCanvas = document.getElementById('starfieldCanvas');
             const starfieldSystem = new StarfieldSystem(starfieldCanvas);
             starfieldSystem.animate();
             
             const lockScreen = new LockScreen();
+            
+            // Initialize AWS immediately
+            console.log('Initializing AWS SDK...');
+            initializeAWS();
+            
+            // Check for existing token after a short delay to ensure storage is ready
+            setTimeout(() => {
+                const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                console.log('Initial token check:', token ? 'Token found' : 'No token');
+                
+                if (token) {
+                    const devId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                    console.log('Developer ID found:', devId);
+                }
+            }, 100);
             
             // Generate build ID for the form
             const buildIdInput = document.getElementById('gameBuildId');
