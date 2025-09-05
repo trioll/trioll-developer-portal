@@ -2013,6 +2013,11 @@
                 let credentials;
                 if (idToken) {
                     console.log('Using authenticated Identity Pool access with Cognito token');
+                    console.log('Token preview:', idToken.substring(0, 50) + '...');
+                    
+                    // Check if this is the developer portal client ID
+                    const portalClientId = '7oe9p2vqckcj64p83c5v3p26o4';
+                    
                     credentials = new AWS.CognitoIdentityCredentials({
                         IdentityPoolId: AWS_CONFIG.identityPoolId,
                         Logins: {
@@ -2034,9 +2039,53 @@
                 AWS.config.credentials.refresh((error) => {
                     if (error) {
                         console.error('Error refreshing AWS credentials:', error);
-                        statusEl.className = 'aws-status error';
-                        statusTextEl.textContent = 'AWS Offline';
-                        awsInitialized = false;
+                        console.error('Error details:', error.message || error);
+                        console.error('Error code:', error.code);
+                        
+                        // Log to debug console if available
+                        if (typeof logToDebugConsole === 'function') {
+                            logToDebugConsole(`AWS credential error: ${error.message || error}`, 'error');
+                            logToDebugConsole(`Error code: ${error.code}`, 'error');
+                        }
+                        
+                        // Try fallback to guest access if authenticated access fails
+                        if (idToken && error.code === 'NotAuthorizedException') {
+                            console.warn('Authenticated access failed, trying guest access...');
+                            logToDebugConsole('Auth failed, falling back to guest access', 'warning');
+                            
+                            // Try guest credentials
+                            const guestCredentials = new AWS.CognitoIdentityCredentials({
+                                IdentityPoolId: AWS_CONFIG.identityPoolId
+                            });
+                            
+                            AWS.config.update({
+                                region: AWS_CONFIG.region,
+                                credentials: guestCredentials
+                            });
+                            
+                            AWS.config.credentials.refresh((guestError) => {
+                                if (guestError) {
+                                    console.error('Guest access also failed:', guestError);
+                                    statusEl.className = 'aws-status error';
+                                    statusTextEl.textContent = 'AWS Offline';
+                                    awsInitialized = false;
+                                } else {
+                                    console.log('Guest access successful');
+                                    statusEl.className = 'aws-status connected';
+                                    statusTextEl.textContent = 'AWS Connected (Guest Fallback)';
+                                    s3 = new AWS.S3({
+                                        apiVersion: '2006-03-01',
+                                        params: { Bucket: AWS_CONFIG.gamesBucket }
+                                    });
+                                    awsInitialized = true;
+                                }
+                                statusEl.style.display = 'flex';
+                            });
+                        } else {
+                            statusEl.className = 'aws-status error';
+                            statusTextEl.textContent = 'AWS Offline';
+                            awsInitialized = false;
+                        }
                     } else {
                         console.log('AWS credentials loaded successfully');
                         console.log('Identity ID:', AWS.config.credentials.identityId);
