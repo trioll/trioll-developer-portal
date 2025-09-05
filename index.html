@@ -1959,7 +1959,8 @@
             
             if (isTokenExpired(token)) {
                 console.log('Token expired');
-                const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken');
+                // Fixed: Use correct key name for refresh token
+                const refreshToken = localStorage.getItem('developerRefreshToken') || sessionStorage.getItem('developerRefreshToken');
                 
                 if (refreshToken) {
                     // TODO: Implement refresh token flow
@@ -1970,11 +1971,11 @@
                 } else {
                     // No refresh token, clear everything
                     localStorage.removeItem('developerToken');
-                    localStorage.removeItem('refreshToken');
+                    localStorage.removeItem('developerRefreshToken');
                     localStorage.removeItem('developerId');
                     localStorage.removeItem('developerInfo');
                     sessionStorage.removeItem('developerToken');
-                    sessionStorage.removeItem('refreshToken');
+                    sessionStorage.removeItem('developerRefreshToken');
                     sessionStorage.removeItem('developerId');
                     sessionStorage.removeItem('developerInfo');
                 }

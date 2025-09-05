@@ -82,21 +82,35 @@ async function handleLogin(event) {
     
     try {
         console.log('[AUTH] Starting login process...');
-        const result = await auth.login(email, password, rememberMe);
+        console.log('[AUTH] Email:', email);
+        console.log('[AUTH] Remember Me:', rememberMe);
         
-        if (result.success) {
+        const result = await auth.login(email, password, rememberMe);
+        console.log('[AUTH] Login result:', result);
+        
+        if (result && result.success) {
             console.log('[AUTH] Login successful, checking token storage...');
             const storedToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
             console.log('[AUTH] Token stored:', storedToken ? 'YES' : 'NO');
             console.log('[AUTH] Token preview:', storedToken ? storedToken.substring(0, 50) + '...' : 'N/A');
             
             // Hide auth screen and show main content
-            hideAuthScreen();
+            try {
+                hideAuthScreen();
+                console.log('[AUTH] Auth screen hidden successfully');
+            } catch (hideError) {
+                console.error('[AUTH] Error hiding auth screen:', hideError);
+            }
             
             // Populate developer info in upload form
             if (auth.isAuthenticated()) {
                 console.log('[AUTH] Auth service reports authenticated');
-                auth.populateUploadForm();
+                try {
+                    auth.populateUploadForm();
+                    console.log('[AUTH] Upload form populated');
+                } catch (populateError) {
+                    console.error('[AUTH] Error populating upload form:', populateError);
+                }
             } else {
                 console.error('[AUTH] Auth service reports NOT authenticated despite successful login');
             }
@@ -107,11 +121,14 @@ async function handleLogin(event) {
                 console.log('[AUTH] Token check after 500ms:', tokenAfterDelay ? 'YES' : 'NO');
             }, 500);
         } else {
-            console.error('[AUTH] Login failed:', result.message);
-            loginError.textContent = result.message;
+            const errorMsg = result?.message || 'Login failed - no response from server';
+            console.error('[AUTH] Login failed:', errorMsg);
+            loginError.textContent = errorMsg;
             loginError.classList.add('show');
         }
     } catch (error) {
+        console.error('[AUTH] Login exception:', error);
+        console.error('[AUTH] Stack trace:', error.stack);
         loginError.textContent = 'An unexpected error occurred. Please try again.';
         loginError.classList.add('show');
     } finally {
@@ -260,31 +277,8 @@ function handleLogout() {
     }
 }
 
-// Update saveGameToDatabase function to include auth headers
-const originalSaveGameToDatabase = window.saveGameToDatabase;
-window.saveGameToDatabase = async function(gameData) {
-    // Add developer authentication headers
-    const headers = {
-        'Content-Type': 'application/json',
-        ...auth.getAuthHeaders()
-    };
-    
-    const response = await fetch(AWS_CONFIG.apiEndpoint + '/games', {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(gameData)
-    });
-    
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to save game to database');
-    }
-    
-    const result = await response.json();
-    console.log('Game saved successfully:', result);
-    
-    return result;
-};
+// We'll override saveGameToDatabase after DOM loads to ensure it exists
+// Remove this code block as it causes errors
 
 // Check authentication on page load
 document.addEventListener('DOMContentLoaded', function() {
