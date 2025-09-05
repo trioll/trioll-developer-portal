@@ -1654,12 +1654,12 @@
                             <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
                                 <p style="color: #60a5fa; font-weight: 600; margin-bottom: 8px;">📋 File Format Requirements:</p>
                                 <ul style="color: #93bbfc; font-size: 0.9rem; margin: 0; padding-left: 20px;">
-                                    <li>Main game file MUST be named <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px;">index.html</code></li>
+                                    <li>Main game file can be any <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px;">.html</code> file (e.g., game.html, index.html, horror_pong_game.html)</li>
                                     <li>Upload as folder (select all files) or ZIP file</li>
                                     <li>Include all assets (images, CSS, JS) your game needs</li>
                                     <li>File structure example:
                                         <pre style="background: rgba(0,0,0,0.2); padding: 8px; margin: 5px 0; border-radius: 4px; font-size: 0.85rem;">YourGame/
-├── index.html (required)
+├── your_game.html (any .html file)
 ├── style.css
 ├── script.js
 └── images/</pre>
@@ -1685,7 +1685,7 @@
                             <label class="form-label">Thumbnail Image *</label>
                             <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
                                 <p style="color: #4ade80; font-size: 0.9rem; margin: 0;">
-                                    🖼️ <strong>Recommended:</strong> Name your thumbnail <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px;">thumbnail.png</code> or <code>thumbnail.jpg</code>
+                                    🖼️ <strong>Accepted:</strong> Any image file (e.g., <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px;">thumbnail.png</code>, <code>game_thumbnail.jpg</code>, <code>Horror Pong Thumbnail.png</code>)
                                     <br>📐 <strong>Size:</strong> 300x300px or larger (square aspect ratio works best)
                                 </p>
                             </div>
@@ -1916,7 +1916,9 @@
                             // Use any HTML file as the game URL (prefer index.html if it exists)
                             if (file.name.toLowerCase().endsWith('.html')) {
                                 if (file.name.toLowerCase() === 'index.html' || !mainHtmlFile) {
-                                    uploadResults.gameUrl = result.url;
+                                    // Update gameUrl to use CloudFront URL with actual filename
+                                    const cloudFrontUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/${cleanPath}`;
+                                    uploadResults.gameUrl = cloudFrontUrl;
                                     mainHtmlFile = file.name;
                                 }
                             }
