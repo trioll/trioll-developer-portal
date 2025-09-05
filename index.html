@@ -1837,6 +1837,7 @@
                             <button class="btn btn-sm" onclick="testTokenValidity()">Token Validity</button>
                             <button class="btn btn-sm" onclick="testRefreshToken()">Refresh Token</button>
                             <button class="btn btn-sm" onclick="testCognitoConnection()">Cognito Connection</button>
+                            <button class="btn btn-sm btn-warning" onclick="forceTokenSync()">Force Token Sync</button>
                         </div>
                     </div>
                     
@@ -1918,11 +1919,26 @@
         }
 
         function validateAndGetToken() {
+            // Force refresh auth service to ensure we have latest tokens
+            if (typeof auth !== 'undefined' && auth.refreshFromStorage) {
+                console.log('validateAndGetToken: Refreshing auth service first...');
+                auth.refreshFromStorage();
+            }
+            
             let token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
             
             if (!token) {
                 console.log('validateAndGetToken: No token found in storage');
-                return null;
+                console.log('localStorage keys:', Object.keys(localStorage));
+                console.log('sessionStorage keys:', Object.keys(sessionStorage));
+                
+                // Try to get from auth service as fallback
+                if (typeof auth !== 'undefined' && auth.token) {
+                    console.log('validateAndGetToken: Found token in auth service');
+                    token = auth.token;
+                } else {
+                    return null;
+                }
             }
             
             console.log('validateAndGetToken: Token found, checking validity...');
@@ -3679,10 +3695,20 @@
         // New test functions
         async function testTokenValidity() {
             logToDebugConsole('Testing token validity...');
-            const token = localStorage.getItem('developerToken');
+            
+            // Check all possible token locations
+            const localStorage_token = localStorage.getItem('developerToken');
+            const sessionStorage_token = sessionStorage.getItem('developerToken');
+            const auth_token = (typeof auth !== 'undefined' && auth.token) ? auth.token : null;
+            
+            logToDebugConsole(`localStorage token: ${localStorage_token ? 'FOUND' : 'NOT FOUND'}`);
+            logToDebugConsole(`sessionStorage token: ${sessionStorage_token ? 'FOUND' : 'NOT FOUND'}`);
+            logToDebugConsole(`auth service token: ${auth_token ? 'FOUND' : 'NOT FOUND'}`);
+            
+            const token = localStorage_token || sessionStorage_token || auth_token;
             
             if (!token) {
-                logToDebugConsole('No token found', 'error');
+                logToDebugConsole('No token found in any location', 'error');
                 return;
             }
             
@@ -3690,7 +3716,45 @@
                 logToDebugConsole('Token is expired!', 'error');
             } else {
                 logToDebugConsole('Token is valid', 'success');
+                try {
+                    const parts = token.split('.');
+                    const payload = JSON.parse(atob(parts[1]));
+                    logToDebugConsole(`Token email: ${payload.email || payload['cognito:username'] || 'unknown'}`);
+                    logToDebugConsole(`Token exp: ${new Date(payload.exp * 1000).toLocaleString()}`);
+                } catch (e) {
+                    logToDebugConsole('Could not decode token payload', 'error');
+                }
             }
+        }
+        
+        // Force sync tokens from auth service to storage
+        function forceTokenSync() {
+            logToDebugConsole('Forcing token sync from auth service to storage...');
+            
+            if (typeof auth === 'undefined' || !auth.token) {
+                logToDebugConsole('No auth service or token available', 'error');
+                return;
+            }
+            
+            // Check if remember me was used
+            const rememberMe = !!localStorage.getItem('developerToken') || !sessionStorage.getItem('developerToken');
+            
+            if (rememberMe) {
+                localStorage.setItem('developerToken', auth.token);
+                if (auth.refreshToken) {
+                    localStorage.setItem('developerRefreshToken', auth.refreshToken);
+                }
+                logToDebugConsole('Tokens synced to localStorage', 'success');
+            } else {
+                sessionStorage.setItem('developerToken', auth.token);
+                if (auth.refreshToken) {
+                    sessionStorage.setItem('developerRefreshToken', auth.refreshToken);
+                }
+                logToDebugConsole('Tokens synced to sessionStorage', 'success');
+            }
+            
+            // Reinitialize AWS
+            initializeAWS();
         }
         
         async function testRefreshToken() {
@@ -4293,11 +4357,12 @@
             loginError.style.display = 'none';
             
             try {
-                // Call the actual backend login endpoint
+                // Call the actual backend login endpoint WITH PROPER HEADERS
                 const loginResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/login`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'  // CRITICAL: This header is required!
                     },
                     body: JSON.stringify({ email, password })
                 });
@@ -4316,17 +4381,23 @@
                 console.log('Storing auth token, length:', authToken ? authToken.length : 'none');
                 if (rememberMe) {
                     localStorage.setItem('developerToken', authToken);
-                    localStorage.setItem('refreshToken', tokens.refreshToken);
+                    localStorage.setItem('developerRefreshToken', tokens.refreshToken); // Fixed key name
                     console.log('Token saved to localStorage');
                 } else {
                     sessionStorage.setItem('developerToken', authToken);
-                    sessionStorage.setItem('refreshToken', tokens.refreshToken);
+                    sessionStorage.setItem('developerRefreshToken', tokens.refreshToken); // Fixed key name
                     console.log('Token saved to sessionStorage');
                 }
                 
                 // Verify token was saved
                 const verifyToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
                 console.log('Verification - token in storage:', verifyToken ? 'YES' : 'NO');
+                
+                // CRITICAL: Update the auth service instance with new tokens
+                if (typeof auth !== 'undefined' && auth.refreshFromStorage) {
+                    console.log('Updating auth service with new tokens...');
+                    auth.refreshFromStorage();
+                }
                 
                 // Reinitialize AWS with authenticated credentials
                 console.log('Reinitializing AWS with authenticated credentials...');

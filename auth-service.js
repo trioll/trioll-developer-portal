@@ -14,6 +14,27 @@ class AuthService {
         
         this.init();
     }
+    
+    // New method to refresh tokens from storage
+    refreshFromStorage() {
+        console.log('[AUTH-SERVICE] Refreshing tokens from storage...');
+        const oldToken = this.token;
+        this.token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+        this.refreshToken = localStorage.getItem('developerRefreshToken') || sessionStorage.getItem('developerRefreshToken');
+        
+        if (oldToken !== this.token) {
+            console.log('[AUTH-SERVICE] Token updated from storage');
+            if (this.token) {
+                this.startTokenRefreshTimer();
+            } else {
+                if (this.tokenRefreshInterval) {
+                    clearInterval(this.tokenRefreshInterval);
+                }
+            }
+        }
+        
+        return !!this.token;
+    }
 
     init() {
         // Check if token exists and is valid
