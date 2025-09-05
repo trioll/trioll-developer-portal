@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Storage Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Storage Debug Tool</h1>
+        
+        <button onclick="checkStorage()">Check All Storage</button>
+        <button onclick="setTestToken()">Set Test Token</button>
+        <button onclick="clearStorage()">Clear All Storage</button>
+        
+        <h2>LocalStorage:</h2>
+        <pre id="localStorage"></pre>
+        
+        <h2>SessionStorage:</h2>
+        <pre id="sessionStorage"></pre>
+        
+        <h2>Token Analysis:</h2>
+        <pre id="tokenAnalysis"></pre>
+    </div>
+
+    <script>
+        function checkStorage() {
+            // Check localStorage
+            const localData = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                localData[key] = value ? (value.length > 100 ? value.substring(0, 100) + '...' : value) : null;
+            }
+            document.getElementById('localStorage').textContent = JSON.stringify(localData, null, 2);
+            
+            // Check sessionStorage
+            const sessionData = {};
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                const value = sessionStorage.getItem(key);
+                sessionData[key] = value ? (value.length > 100 ? value.substring(0, 100) + '...' : value) : null;
+            }
+            document.getElementById('sessionStorage').textContent = JSON.stringify(sessionData, null, 2);
+            
+            // Analyze token
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (token) {
+                try {
+                    const parts = token.split('.');
+                    const payload = JSON.parse(atob(parts[1]));
+                    const exp = new Date(payload.exp * 1000);
+                    const iat = new Date(payload.iat * 1000);
+                    const now = new Date();
+                    
+                    const analysis = {
+                        hasToken: true,
+                        email: payload.email,
+                        issuedAt: iat.toISOString(),
+                        expiresAt: exp.toISOString(),
+                        currentTime: now.toISOString(),
+                        isExpired: exp < now,
+                        timeUntilExpiry: Math.floor((exp - now) / 1000 / 60) + ' minutes',
+                        tokenAge: Math.floor((now - iat) / 1000) + ' seconds'
+                    };
+                    
+                    document.getElementById('tokenAnalysis').textContent = JSON.stringify(analysis, null, 2);
+                } catch (e) {
+                    document.getElementById('tokenAnalysis').textContent = 'Error parsing token: ' + e.message;
+                }
+            } else {
+                document.getElementById('tokenAnalysis').textContent = 'No token found in storage';
+            }
+        }
+        
+        function setTestToken() {
+            // This creates a fake token for testing
+            const header = {
+                "alg": "RS256",
+                "typ": "JWT"
+            };
+            const payload = {
+                "sub": "test-user",
+                "email": "test@example.com",
+                "iat": Math.floor(Date.now() / 1000),
+                "exp": Math.floor(Date.now() / 1000) + (2 * 60 * 60) // 2 hours
+            };
+            const token = btoa(JSON.stringify(header)) + '.' + btoa(JSON.stringify(payload)) + '.fake-signature';
+            localStorage.setItem('developerToken', token);
+            localStorage.setItem('developerId', 'dev_test');
+            alert('Test token set!');
+            checkStorage();
+        }
+        
+        function clearStorage() {
+            if (confirm('Clear all storage?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                checkStorage();
+            }
+        }
+        
+        // Auto-check on load
+        checkStorage();
+    </script>
+</body>
+</html>

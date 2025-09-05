@@ -2519,6 +2519,7 @@
                         gameId: gameData.gameId || gameData.id, // Include gameId
                         name: gameData.name || gameData.title, // API expects 'name' field
                         gameStage: gameData.gameStage || 'production', // Add required field
+                        deviceCompatibility: gameData.deviceCompatibility || ['desktop', 'mobile', 'tablet'], // Add required field
                         status: 'active', // Developer can control if game is immediately active
                         publishedAt: new Date().toISOString()
                         // Backend will initialize: plays, likes, rating, commentCount
