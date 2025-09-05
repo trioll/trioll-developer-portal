@@ -3521,7 +3521,8 @@
                     throw new Error(`API returned ${response.status}: ${await response.text()}`);
                 }
                 
-                const developerInfo = await response.json();
+                const data = await response.json();
+                const developerInfo = data.developer || data;
                 
                 if (developerInfo && developerInfo.developerId) {
                     // Save the developer ID and info
