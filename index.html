@@ -2612,13 +2612,17 @@
         // Save game to backend
         async function saveGameToDatabase(gameData) {
             try {
+                // Debug: Check what's in storage
+                console.log('saveGameToDatabase - Checking token...');
+                console.log('localStorage token exists:', !!localStorage.getItem('developerToken'));
+                console.log('sessionStorage token exists:', !!sessionStorage.getItem('developerToken'));
+                
                 // Get auth token for API call with validation
                 const authToken = validateAndGetToken();
+                console.log('validateAndGetToken returned:', authToken ? 'token found' : 'null');
+                
                 if (!authToken) {
-                    console.warn('No auth token found. Game will be uploaded to S3 but not saved to database.');
-                    // Return the game data without saving to API
-                    // This allows upload to succeed even when not logged in
-                    return gameData;
+                    throw new Error('Authentication required. Please log in again.');
                 }
                 
                 // Determine the proper origin
