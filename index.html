@@ -2821,8 +2821,11 @@
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
-                // Try the developer games endpoint if it exists
-                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/${developerId}/games`, {
+                // Always use the main games endpoint and filter client-side
+                // The developer-specific endpoint doesn't exist in the backend
+                console.log('Loading games from main endpoint and filtering by developerId:', developerId);
+                
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
                     method: 'GET',
                     headers: headers
                 });
@@ -2831,21 +2834,21 @@
                 
                 if (response.ok) {
                     const result = await response.json();
-                    myGames = result.games || [];
-                } else {
-                    // If developer endpoint doesn't exist, fall back to filtering all games
-                    console.log('Developer games endpoint not available, filtering from all games');
-                    const allGamesResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
-                        method: 'GET',
-                        headers: headers
+                    const allGames = result.games || [];
+                    console.log(`Total games in system: ${allGames.length}`);
+                    
+                    // Filter games by developerId
+                    myGames = allGames.filter(game => {
+                        const hasDevId = game.developerId && game.developerId === developerId;
+                        if (hasDevId) {
+                            console.log(`Found game: ${game.name || game.title} (${game.gameId})`);
+                        }
+                        return hasDevId;
                     });
                     
-                    if (allGamesResponse.ok) {
-                        const result = await allGamesResponse.json();
-                        const allGames = result.games || [];
-                        // Filter by developerId
-                        myGames = allGames.filter(game => game.developerId === developerId);
-                    }
+                    console.log(`Games belonging to ${developerId}: ${myGames.length}`);
+                } else {
+                    throw new Error(`Failed to load games: ${response.status} ${response.statusText}`);
                 }
                 
                 // Display the filtered games
@@ -3605,6 +3608,7 @@
                         deviceOrientation: 'both',
                         controlStyle: 'touchscreen',
                         gameStage: 'production',
+                        deviceCompatibility: ['desktop', 'mobile', 'tablet'], // Add missing field
                         gameUrl: 'https://example.com/test.html',
                         thumbnailUrl: 'https://example.com/test.png',
                         status: 'active',
@@ -3660,8 +3664,8 @@
                     Body: testFile
                 };
                 
-                const upload = s3.upload(params);
-                await upload.promise();
+                logToDebugConsole('Uploading test file...', 'info');
+                const uploadResult = await s3.upload(params).promise();
                 
                 logToDebugConsole('S3 upload test successful!', 'success');
                 

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Test Diagnostic</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .success { color: #10b981; font-weight: bold; }
+        .error { color: #ef4444; font-weight: bold; }
+        .warning { color: #f59e0b; font-weight: bold; }
+        .info { color: #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #333;
+        }
+        .log-entry.success { border-color: #10b981; }
+        .log-entry.error { border-color: #ef4444; }
+        .log-entry.info { border-color: #3b82f6; }
+        input[type="file"] {
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Game Upload Diagnostic Tool</h1>
+    <p>This tool will test each step of the upload process to identify what's failing.</p>
+    
+    <div class="section">
+        <h2>Step 1: Authentication Check</h2>
+        <button onclick="checkAuth()">Check Authentication</button>
+        <div id="authResults"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 2: AWS S3 Access Test</h2>
+        <button onclick="testS3Access()">Test S3 Access</button>
+        <div id="s3Results"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 3: Test File Upload</h2>
+        <input type="file" id="testFile" accept=".html,.js,.css" />
+        <button onclick="testFileUpload()">Test Upload to S3</button>
+        <div id="uploadResults"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 4: API Save Test</h2>
+        <button onclick="testAPISave()">Test Save to Database</button>
+        <div id="apiResults"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 5: Complete Upload Test</h2>
+        <input type="file" id="gameFile" accept=".html" />
+        <button onclick="fullUploadTest()">Run Full Upload Test</button>
+        <div id="fullResults"></div>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Diagnostic Log</h2>
+        <div id="diagnosticLog" style="max-height: 400px; overflow-y: auto;"></div>
+    </div>
+    
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
+    <script>
+        const AWS_CONFIG = {
+            region: 'us-east-1',
+            identityPoolId: 'us-east-1:c740f334-5bd2-43c6-85b9-48bfebf27268',
+            gamesBucket: 'trioll-prod-games-us-east-1',
+            apiEndpoint: 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod'
+        };
+        
+        let s3 = null;
+        let logs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = { time: timestamp, message, type };
+            logs.push(entry);
+            
+            const logDiv = document.getElementById('diagnosticLog');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        async function checkAuth() {
+            const container = document.getElementById('authResults');
+            container.innerHTML = '<p>Checking authentication...</p>';
+            
+            try {
+                // Check token
+                const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                
+                let html = '<h3>Authentication Status:</h3>';
+                
+                if (!token) {
+                    html += '<p class="error">❌ No token found - Please login first</p>';
+                    log('No authentication token found', 'error');
+                } else {
+                    html += '<p class="success">✅ Token found</p>';
+                    log('Token found in storage', 'success');
+                    
+                    // Decode token
+                    try {
+                        const parts = token.split('.');
+                        const payload = JSON.parse(atob(parts[1]));
+                        const exp = new Date(payload.exp * 1000);
+                        const now = new Date();
+                        
+                        if (exp > now) {
+                            html += '<p class="success">✅ Token valid until: ' + exp.toLocaleString() + '</p>';
+                            log('Token is valid', 'success');
+                        } else {
+                            html += '<p class="error">❌ Token expired at: ' + exp.toLocaleString() + '</p>';
+                            log('Token is expired', 'error');
+                        }
+                    } catch (e) {
+                        html += '<p class="warning">⚠️ Could not decode token</p>';
+                        log('Token decode error: ' + e.message, 'error');
+                    }
+                }
+                
+                if (!developerId) {
+                    html += '<p class="error">❌ No developer ID found</p>';
+                    log('No developer ID found', 'error');
+                } else {
+                    html += '<p class="success">✅ Developer ID: ' + developerId + '</p>';
+                    log('Developer ID: ' + developerId, 'success');
+                }
+                
+                container.innerHTML = html;
+                
+            } catch (error) {
+                container.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+                log('Auth check error: ' + error.message, 'error');
+            }
+        }
+        
+        async function testS3Access() {
+            const container = document.getElementById('s3Results');
+            container.innerHTML = '<p>Testing S3 access...</p>';
+            
+            try {
+                // Initialize AWS
+                AWS.config.update({
+                    region: AWS_CONFIG.region,
+                    credentials: new AWS.CognitoIdentityCredentials({
+                        IdentityPoolId: AWS_CONFIG.identityPoolId
+                    })
+                });
+                
+                log('Initializing AWS SDK...', 'info');
+                
+                await new Promise((resolve, reject) => {
+                    AWS.config.credentials.refresh((error) => {
+                        if (error) {
+                            log('AWS credential error: ' + error.message, 'error');
+                            reject(error);
+                        } else {
+                            log('AWS credentials loaded', 'success');
+                            resolve();
+                        }
+                    });
+                });
+                
+                // Create S3 client
+                s3 = new AWS.S3({
+                    apiVersion: '2006-03-01',
+                    params: { Bucket: AWS_CONFIG.gamesBucket }
+                });
+                
+                // Test bucket access
+                log('Testing bucket access...', 'info');
+                const listParams = {
+                    Bucket: AWS_CONFIG.gamesBucket,
+                    MaxKeys: 1
+                };
+                
+                await s3.listObjectsV2(listParams).promise();
+                
+                container.innerHTML = '<p class="success">✅ S3 access successful!</p>';
+                log('S3 bucket access confirmed', 'success');
+                
+            } catch (error) {
+                container.innerHTML = '<p class="error">❌ S3 Error: ' + error.message + '</p>';
+                log('S3 access error: ' + error.message, 'error');
+                
+                // Check specific error types
+                if (error.message.includes('credentials')) {
+                    log('Possible fix: Check browser allows third-party cookies', 'warning');
+                } else if (error.message.includes('Access Denied')) {
+                    log('Possible fix: IAM role permissions need update', 'warning');
+                }
+            }
+        }
+        
+        async function testFileUpload() {
+            const container = document.getElementById('uploadResults');
+            const fileInput = document.getElementById('testFile');
+            
+            if (!fileInput.files[0]) {
+                container.innerHTML = '<p class="error">Please select a file first</p>';
+                return;
+            }
+            
+            if (!s3) {
+                container.innerHTML = '<p class="error">S3 not initialized - run S3 test first</p>';
+                return;
+            }
+            
+            container.innerHTML = '<p>Uploading test file...</p>';
+            
+            try {
+                const file = fileInput.files[0];
+                const testKey = `test-upload-${Date.now()}-${file.name}`;
+                
+                log(`Uploading ${file.name} (${file.size} bytes)...`, 'info');
+                
+                const uploadParams = {
+                    Bucket: AWS_CONFIG.gamesBucket,
+                    Key: testKey,
+                    Body: file,
+                    ContentType: file.type || 'text/html'
+                };
+                
+                const upload = s3.upload(uploadParams);
+                
+                upload.on('httpUploadProgress', (progress) => {
+                    const percent = Math.round((progress.loaded / progress.total) * 100);
+                    log(`Upload progress: ${percent}%`, 'info');
+                });
+                
+                const result = await upload.promise();
+                
+                container.innerHTML = `
+                    <p class="success">✅ Upload successful!</p>
+                    <p>Location: ${result.Location}</p>
+                    <p>Key: ${result.Key}</p>
+                `;
+                log('File uploaded successfully', 'success');
+                
+                // Try to delete test file
+                log('Cleaning up test file...', 'info');
+                await s3.deleteObject({ Bucket: AWS_CONFIG.gamesBucket, Key: testKey }).promise();
+                log('Test file deleted', 'success');
+                
+            } catch (error) {
+                container.innerHTML = '<p class="error">❌ Upload Error: ' + error.message + '</p>';
+                log('Upload error: ' + error.message, 'error');
+            }
+        }
+        
+        async function testAPISave() {
+            const container = document.getElementById('apiResults');
+            container.innerHTML = '<p>Testing API save...</p>';
+            
+            try {
+                const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                
+                if (!token) {
+                    throw new Error('No authentication token');
+                }
+                
+                const testGame = {
+                    gameId: `test-game-${Date.now()}`,
+                    name: 'Test Game Upload',
+                    description: 'Testing game upload functionality',
+                    category: 'Other',
+                    developer: 'Test Developer',
+                    developerId: developerId || 'dev_c84a7e',
+                    gameStage: 'production',
+                    deviceCompatibility: ['desktop', 'mobile', 'tablet'],
+                    deviceOrientation: 'both',
+                    controlStyle: 'touchscreen',
+                    status: 'active',
+                    gameUrl: 'https://test.example.com/game.html',
+                    thumbnailUrl: '',
+                    uploadedAt: new Date().toISOString(),
+                    version: '1.0.0'  // Important for DynamoDB composite key
+                };
+                
+                log('Sending test game to API...', 'info');
+                log('Payload: ' + JSON.stringify(testGame, null, 2), 'info');
+                
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify(testGame)
+                });
+                
+                const responseText = await response.text();
+                log(`API Response: ${response.status} - ${responseText}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    container.innerHTML = '<p class="success">✅ API save successful!</p>';
+                } else {
+                    container.innerHTML = `<p class="error">❌ API Error: ${response.status}</p><pre>${responseText}</pre>`;
+                }
+                
+            } catch (error) {
+                container.innerHTML = '<p class="error">❌ Error: ' + error.message + '</p>';
+                log('API test error: ' + error.message, 'error');
+            }
+        }
+        
+        async function fullUploadTest() {
+            const container = document.getElementById('fullResults');
+            const fileInput = document.getElementById('gameFile');
+            
+            if (!fileInput.files[0]) {
+                container.innerHTML = '<p class="error">Please select a game HTML file</p>';
+                return;
+            }
+            
+            container.innerHTML = '<p>Running full upload test...</p>';
+            
+            try {
+                // Step 1: Check prerequisites
+                log('=== FULL UPLOAD TEST STARTING ===', 'info');
+                const token = localStorage.getItem('developerToken');
+                const developerId = localStorage.getItem('developerId') || 'dev_c84a7e';
+                
+                if (!token) throw new Error('No authentication token');
+                if (!s3) {
+                    log('Initializing S3...', 'info');
+                    await testS3Access();
+                }
+                
+                // Step 2: Upload file to S3
+                const file = fileInput.files[0];
+                const gameId = `game-${Date.now()}`;
+                const gameKey = `${gameId}/${file.name}`;
+                
+                log(`Uploading ${file.name} to S3...`, 'info');
+                
+                const uploadParams = {
+                    Bucket: AWS_CONFIG.gamesBucket,
+                    Key: gameKey,
+                    Body: file,
+                    ContentType: 'text/html'
+                };
+                
+                const uploadResult = await s3.upload(uploadParams).promise();
+                log('S3 upload successful: ' + uploadResult.Location, 'success');
+                
+                // Step 3: Save to API
+                const gameData = {
+                    gameId: gameId,
+                    name: file.name.replace('.html', '').replace(/-/g, ' '),
+                    description: 'Test game upload',
+                    category: 'Action',
+                    developer: 'FreddieTrioll',
+                    developerId: developerId,
+                    gameStage: 'production',
+                    deviceCompatibility: ['desktop', 'mobile', 'tablet'],
+                    deviceOrientation: 'both',
+                    controlStyle: 'touchscreen',
+                    status: 'active',
+                    gameUrl: uploadResult.Location,
+                    thumbnailUrl: '',
+                    uploadedAt: new Date().toISOString(),
+                    version: '1.0.0'
+                };
+                
+                log('Saving game metadata to API...', 'info');
+                
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify(gameData)
+                });
+                
+                const responseText = await response.text();
+                
+                if (response.ok) {
+                    container.innerHTML = `
+                        <p class="success">✅ Full upload successful!</p>
+                        <p>Game ID: ${gameId}</p>
+                        <p>URL: <a href="${uploadResult.Location}" target="_blank">${uploadResult.Location}</a></p>
+                    `;
+                    log('Full upload completed successfully!', 'success');
+                } else {
+                    throw new Error(`API save failed: ${response.status} - ${responseText}`);
+                }
+                
+            } catch (error) {
+                container.innerHTML = '<p class="error">❌ Full upload failed: ' + error.message + '</p>';
+                log('Full upload error: ' + error.message, 'error');
+            }
+        }
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('Upload diagnostic tool ready', 'info');
+            checkAuth();
+        });
+    </script>
+</body>
+</html>
