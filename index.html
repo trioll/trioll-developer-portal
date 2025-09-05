@@ -1590,7 +1590,7 @@
 
                         <div class="form-group">
                             <label class="form-label">Supported Device Orientation *</label>
-                            <select class="form-select" id="deviceOrientation" required>
+                            <select class="form-select" id="deviceOrientation">
                                 <option value="">Select orientation</option>
                                 <option value="Portrait">Portrait</option>
                                 <option value="Landscape">Landscape</option>
@@ -1600,7 +1600,7 @@
 
                         <div class="form-group">
                             <label class="form-label">Control Style *</label>
-                            <select class="form-select" id="controlStyle" required>
+                            <select class="form-select" id="controlStyle">
                                 <option value="">Select control style</option>
                                 <option value="Tap & Swipe Only">Tap & Swipe Only</option>
                                 <option value="Virtual Joystick + Buttons">Virtual Joystick + Buttons</option>
@@ -2262,7 +2262,8 @@
                 const authToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
                 
                 const headers = {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Origin': window.location.origin || 'file://'
                 };
                 
                 // Add auth header if available
@@ -2270,11 +2271,16 @@
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
+                console.log('Saving game to API:', AWS_CONFIG.apiEndpoint + '/games');
+                console.log('Request headers:', headers);
+                console.log('Request body:', JSON.stringify({...gameData, title: gameData.name, status: 'active', publishedAt: new Date().toISOString()}, null, 2));
+                
                 const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
                     method: 'POST',
                     headers: headers,
                     body: JSON.stringify({
                         ...gameData,
+                        gameId: gameData.gameId || gameData.id, // Include gameId
                         title: gameData.name, // API expects 'title' not 'name'
                         status: 'active', // Developer can control if game is immediately active
                         publishedAt: new Date().toISOString()
@@ -2739,8 +2745,8 @@
                         category: category,
                         description: description,
                         developer: developer,
-                        deviceOrientation: deviceOrientation,
-                        controlStyle: controlStyle,
+                        deviceOrientation: deviceOrientation || 'both',
+                        controlStyle: controlStyle || 'touchscreen',
                         gameStage: gameStage,
                         deviceCompatibility: deviceCompatibility,
                         buildId: buildId
@@ -2757,8 +2763,8 @@
                     description: description,
                     developer: developer,
                     developerId: developerId, // Include developer ID
-                    deviceOrientation: deviceOrientation,
-                    controlStyle: controlStyle,
+                    deviceOrientation: deviceOrientation || 'both',
+                    controlStyle: controlStyle || 'touchscreen',
                     gameStage: gameStage,
                     deviceCompatibility: deviceCompatibility,
                     buildId: buildId,
