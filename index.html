@@ -1471,6 +1471,7 @@
                 <button class="nav-link" onclick="showSection('games')">All Games</button>
                 <button class="nav-link" onclick="showSection('mygames')">My Games</button>
                 <button class="nav-link" onclick="showSection('analytics')">Analytics</button>
+                <button class="nav-link" onclick="showSection('debug')">Debug</button>
             </div>
         </div>
     </nav>
@@ -1748,6 +1749,46 @@
                     <p style="color: var(--text-gray-400);">
                         Analytics will be available once you have active games on the platform.
                     </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Debug Section -->
+        <section id="debug" class="section">
+            <div class="container">
+                <h2 style="font-size: 2rem; margin-bottom: 2rem;">🔍 Debug Tools</h2>
+                
+                <div class="upload-section">
+                    <div class="form-group">
+                        <h3>Upload Debug Tool</h3>
+                        <p style="color: var(--text-gray-400); margin-bottom: 1.5rem;">
+                            Use this tool to diagnose upload issues and test API connectivity.
+                        </p>
+                        
+                        <div style="background: #2a2a2a; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                            <h4>Current Status</h4>
+                            <pre id="debugStatus" style="background: #1a1a1a; padding: 1rem; border-radius: 4px; overflow-x: auto;"></pre>
+                        </div>
+                        
+                        <div class="button-group" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <button class="btn btn-primary" onclick="checkDebugAuth()">Check Auth Token</button>
+                            <button class="btn btn-primary" onclick="testDebugAPI()">Test API Connection</button>
+                            <button class="btn btn-secondary" onclick="clearDebugOutput()">Clear Output</button>
+                        </div>
+                        
+                        <div id="debugOutput" style="margin-top: 1.5rem;"></div>
+                        
+                        <div style="margin-top: 2rem; padding: 1rem; background: #3a3a1a; border: 1px solid #fbbf24; border-radius: 8px;">
+                            <h4 style="color: #fbbf24;">⚠️ Troubleshooting Tips</h4>
+                            <ul style="color: var(--text-gray-300); line-height: 1.8;">
+                                <li>Make sure you're logged in before running tests</li>
+                                <li>Check browser console (F12) for additional errors</li>
+                                <li>CORS errors indicate API configuration issues</li>
+                                <li>401 errors mean authentication token is invalid</li>
+                                <li>Network errors might indicate HTTPS/HTTP mismatch</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -2183,6 +2224,11 @@
             // Load developer's games when navigating to My Games section
             if (sectionId === 'mygames') {
                 loadMyGames();
+            }
+            
+            // Update debug status when navigating to debug section
+            if (sectionId === 'debug') {
+                updateDebugStatus();
             }
             
             // Update dashboard info when navigating to dashboard
@@ -3065,6 +3111,141 @@
             const timestamp = Date.now();
             const random = Math.random().toString(36).substring(2, 8);
             return `BUILD-${timestamp}-${random.toUpperCase()}`;
+        }
+
+        // Debug functions
+        function updateDebugStatus() {
+            const statusEl = document.getElementById('debugStatus');
+            if (!statusEl) return;
+            
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            
+            statusEl.textContent = JSON.stringify({
+                location: {
+                    href: window.location.href,
+                    protocol: window.location.protocol,
+                    host: window.location.host,
+                    origin: window.location.origin
+                },
+                auth: {
+                    hasToken: !!token,
+                    tokenPreview: token ? token.substring(0, 20) + '...' : 'No token found',
+                    developerId: developerId || 'Not found'
+                },
+                timestamp: new Date().toISOString()
+            }, null, 2);
+        }
+
+        function checkDebugAuth() {
+            const outputEl = document.getElementById('debugOutput');
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            
+            if (!token) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>⚠️ No Auth Token Found</strong><br>
+                        Please login first at the Home tab before running debug tests.
+                    </div>
+                `;
+                return;
+            }
+            
+            outputEl.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✅ Authentication Details</strong><br>
+                    <pre style="background: #1a1a1a; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px;">${JSON.stringify({
+                        hasToken: true,
+                        tokenLength: token.length,
+                        tokenPreview: token.substring(0, 40) + '...',
+                        developerId: developerId,
+                        tokenExpiry: 'Check JWT decode for expiry'
+                    }, null, 2)}</pre>
+                </div>
+            `;
+            
+            updateDebugStatus();
+        }
+
+        async function testDebugAPI() {
+            const outputEl = document.getElementById('debugOutput');
+            outputEl.innerHTML = '<div class="alert alert-info">🔄 Testing API connection...</div>';
+            
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            
+            if (!token || !developerId) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Missing Credentials</strong><br>
+                        Token: ${token ? 'Found' : 'Missing'}<br>
+                        Developer ID: ${developerId || 'Missing'}<br>
+                        Please login first.
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                const testData = {
+                    gameId: 'test-' + Date.now(),
+                    name: 'Debug Test Game',
+                    description: 'Test game for debugging upload issues',
+                    category: 'Test',
+                    developerId: developerId,
+                    status: 'active'
+                };
+                
+                console.log('Sending test data:', testData);
+                
+                const response = await fetch(AWS_CONFIG.apiEndpoint + '/games', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const responseText = await response.text();
+                
+                outputEl.innerHTML = `
+                    <div class="alert alert-${response.ok ? 'success' : 'error'}">
+                        <strong>${response.ok ? '✅' : '❌'} API Response</strong><br>
+                        Status: ${response.status} ${response.statusText}<br>
+                        <pre style="background: #1a1a1a; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify({
+                            status: response.status,
+                            headers: {
+                                'content-type': response.headers.get('content-type'),
+                                'access-control-allow-origin': response.headers.get('access-control-allow-origin')
+                            },
+                            response: responseText.length > 500 ? responseText.substring(0, 500) + '...' : responseText
+                        }, null, 2)}</pre>
+                    </div>
+                `;
+                
+                if (!response.ok) {
+                    console.error('API Error:', responseText);
+                }
+                
+            } catch (error) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-error">
+                        <strong>❌ Network Error</strong><br>
+                        ${error.message}<br>
+                        <pre style="background: #1a1a1a; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px;">${error.stack}</pre>
+                    </div>
+                `;
+                console.error('Full error:', error);
+            }
+            
+            updateDebugStatus();
+        }
+
+        function clearDebugOutput() {
+            document.getElementById('debugOutput').innerHTML = '';
+            updateDebugStatus();
         }
 
         window.addEventListener('DOMContentLoaded', () => {
