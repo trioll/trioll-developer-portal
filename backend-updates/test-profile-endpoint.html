@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Developer Profile Endpoint</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Developer Profile Endpoint</h1>
+        
+        <div class="test-section">
+            <h2>Step 1: Login</h2>
+            <input type="email" id="email" placeholder="Email" value="freddiecaplin@hotmail.com">
+            <input type="password" id="password" placeholder="Password" value="">
+            <button onclick="testLogin()">Login</button>
+            <div id="loginResult" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Step 2: Test Profile Endpoint</h2>
+            <p>Token: <span id="tokenStatus">Not logged in</span></p>
+            <button onclick="testProfile()">Test /developers/profile</button>
+            <div id="profileResult" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Debug Info</h2>
+            <button onclick="showDebugInfo()">Show Debug Info</button>
+            <div id="debugResult" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_ENDPOINT = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        let currentToken = null;
+
+        async function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('loginResult');
+            
+            if (!email || !password) {
+                showResult(resultDiv, 'Please enter email and password', 'error');
+                return;
+            }
+            
+            try {
+                showResult(resultDiv, 'Logging in...', 'info');
+                
+                const response = await fetch(`${API_ENDPOINT}/developers/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    currentToken = data.tokens.idToken;
+                    document.getElementById('tokenStatus').textContent = 'Logged in - Token available';
+                    showResult(resultDiv, `Login successful!\n\nDeveloper Info:\n${JSON.stringify(data.developer, null, 2)}`, 'success');
+                } else {
+                    showResult(resultDiv, `Login failed: ${data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showResult(resultDiv, `Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testProfile() {
+            const resultDiv = document.getElementById('profileResult');
+            
+            if (!currentToken) {
+                showResult(resultDiv, 'Please login first', 'error');
+                return;
+            }
+            
+            try {
+                showResult(resultDiv, 'Testing /developers/profile endpoint...', 'info');
+                
+                const response = await fetch(`${API_ENDPOINT}/developers/profile`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult(resultDiv, `✅ SUCCESS! Status: ${response.status}\n\nResponse:\n${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    showResult(resultDiv, `❌ FAILED! Status: ${response.status}\n\nResponse:\n${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                showResult(resultDiv, `Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function showDebugInfo() {
+            const resultDiv = document.getElementById('debugResult');
+            const debugInfo = {
+                hasToken: !!currentToken,
+                tokenPreview: currentToken ? currentToken.substring(0, 50) + '...' : null,
+                apiEndpoint: API_ENDPOINT,
+                timestamp: new Date().toISOString()
+            };
+            
+            if (currentToken) {
+                try {
+                    // Decode JWT token
+                    const parts = currentToken.split('.');
+                    const payload = JSON.parse(atob(parts[1]));
+                    debugInfo.tokenPayload = payload;
+                } catch (e) {
+                    debugInfo.tokenDecodeError = e.message;
+                }
+            }
+            
+            showResult(resultDiv, JSON.stringify(debugInfo, null, 2), 'info');
+        }
+        
+        function showResult(element, message, type) {
+            element.textContent = message;
+            element.className = `result ${type}`;
+            element.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
