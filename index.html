@@ -3428,47 +3428,44 @@
             loginError.style.display = 'none';
             
             try {
-                // This is a placeholder - in production, this would call your actual auth service
-                // For now, we'll simulate a successful login
-                // TODO: Replace with actual Cognito authentication
+                // Call the actual backend login endpoint
+                const loginResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
                 
-                // Simulate API call delay
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                const loginData = await loginResponse.json();
                 
-                // For demo purposes, we'll create a fake token
-                const fakeToken = 'eyJraWQiOiJkb2U3cmkx' + btoa(email + ':' + Date.now());
-                
-                // Store the token
-                if (rememberMe) {
-                    localStorage.setItem('developerToken', fakeToken);
-                } else {
-                    sessionStorage.setItem('developerToken', fakeToken);
+                if (!loginResponse.ok || !loginData.success) {
+                    throw new Error(loginData.message || 'Login failed');
                 }
                 
-                // Try to fetch developer info from API
-                try {
-                    const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/profile`, {
-                        headers: {
-                            'Authorization': `Bearer ${fakeToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        const developerInfo = await response.json();
-                        
-                        // Save developer info
-                        if (rememberMe) {
-                            localStorage.setItem('developerId', developerInfo.developerId);
-                            localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
-                        } else {
-                            sessionStorage.setItem('developerId', developerInfo.developerId);
-                            sessionStorage.setItem('developerInfo', JSON.stringify(developerInfo));
-                        }
+                // Extract tokens and developer info from response
+                const { tokens, developer } = loginData;
+                
+                // Store the auth token (use ID token for API auth)
+                const authToken = tokens.idToken;
+                if (rememberMe) {
+                    localStorage.setItem('developerToken', authToken);
+                    localStorage.setItem('refreshToken', tokens.refreshToken);
+                } else {
+                    sessionStorage.setItem('developerToken', authToken);
+                    sessionStorage.setItem('refreshToken', tokens.refreshToken);
+                }
+                
+                // Store developer info if provided
+                if (developer && developer.developerId) {
+                    if (rememberMe) {
+                        localStorage.setItem('developerId', developer.developerId);
+                        localStorage.setItem('developerInfo', JSON.stringify(developer));
+                    } else {
+                        sessionStorage.setItem('developerId', developer.developerId);
+                        sessionStorage.setItem('developerInfo', JSON.stringify(developer));
                     }
-                } catch (error) {
-                    console.log('Could not fetch developer info:', error);
-                    // Continue anyway - user can use Fix Developer ID if needed
+                    console.log('Developer ID saved from login:', developer.developerId);
                 }
                 
                 // Hide login modal
