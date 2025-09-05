@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API CORS from triolldev.com</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>API CORS Test</h1>
+    <p>Current location: <code id="location"></code></p>
+    <p>Protocol: <code id="protocol"></code></p>
+    
+    <button onclick="testOptions()">Test OPTIONS (Preflight)</button>
+    <button onclick="testGet()">Test GET /games</button>
+    <button onclick="testPost()">Test POST /games</button>
+    
+    <div id="results"></div>
+
+    <script>
+        // Display current location info
+        document.getElementById('location').textContent = window.location.href;
+        document.getElementById('protocol').textContent = window.location.protocol;
+        
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        function addResult(title, success, details) {
+            const div = document.createElement('div');
+            div.className = `test-result ${success ? 'success' : 'error'}`;
+            div.innerHTML = `<strong>${title}</strong>\n${details}`;
+            document.getElementById('results').appendChild(div);
+        }
+        
+        async function testOptions() {
+            try {
+                const response = await fetch(`${API_BASE}/games`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type,Authorization'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+                
+                addResult('OPTIONS Request', response.ok, 
+                    `Status: ${response.status}\n` +
+                    `CORS Headers:\n${JSON.stringify(corsHeaders, null, 2)}`
+                );
+            } catch (error) {
+                addResult('OPTIONS Request', false, `Error: ${error.message}`);
+            }
+        }
+        
+        async function testGet() {
+            try {
+                const response = await fetch(`${API_BASE}/games`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                addResult('GET /games', response.ok,
+                    `Status: ${response.status}\n` +
+                    `Games found: ${data.games ? data.games.length : 0}\n` +
+                    `CORS: ${response.headers.get('Access-Control-Allow-Origin') || 'Not set'}`
+                );
+            } catch (error) {
+                addResult('GET /games', false, `Error: ${error.message}\n${error.stack}`);
+            }
+        }
+        
+        async function testPost() {
+            try {
+                // Get auth token if available
+                const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const testGame = {
+                    gameId: 'test-' + Date.now(),
+                    title: 'Test Game',
+                    category: 'Test',
+                    developerId: 'test_dev'
+                };
+                
+                const response = await fetch(`${API_BASE}/games`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(testGame)
+                });
+                
+                const responseText = await response.text();
+                
+                addResult('POST /games', response.ok,
+                    `Status: ${response.status}\n` +
+                    `Auth: ${token ? 'Token present' : 'No token'}\n` +
+                    `Response: ${responseText}\n` +
+                    `CORS: ${response.headers.get('Access-Control-Allow-Origin') || 'Not set'}`
+                );
+            } catch (error) {
+                addResult('POST /games', false, 
+                    `Error: ${error.message}\n` +
+                    `Type: ${error.name}\n` +
+                    `Stack: ${error.stack}`
+                );
+            }
+        }
+    </script>
+</body>
+</html>
