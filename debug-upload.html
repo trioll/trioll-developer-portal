@@ -40,6 +40,12 @@
 <body>
     <h1>🔍 Debug Upload Issue</h1>
     
+    <div class="test" style="background: #3a3a1a; border-color: #fbbf24;">
+        <h3>⚠️ Important: Login First!</h3>
+        <p>You must be logged in at <a href="/" style="color: #60a5fa;">triolldev.com</a> before using this debug page.</p>
+        <p>Login with: freddiecaplin@hotmail.com / @Freddie1</p>
+    </div>
+    
     <div class="test">
         <h3>1. Check Current Location</h3>
         <pre id="location-info"></pre>
@@ -98,7 +104,7 @@
                 // Test if we can reach the API at all
                 const testData = {
                     gameId: 'test-' + Date.now(),
-                    title: 'Debug Test Game',
+                    name: 'Debug Test Game',  // API expects 'name' not 'title'
                     category: 'Test',
                     developerId: 'dev_freddi',
                     status: 'active'

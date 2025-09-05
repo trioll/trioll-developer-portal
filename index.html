@@ -2306,7 +2306,7 @@
                 
                 console.log('Saving game to API:', AWS_CONFIG.apiEndpoint + '/games');
                 console.log('Request headers:', headers);
-                console.log('Request body:', JSON.stringify({...gameData, title: gameData.name, status: 'active', publishedAt: new Date().toISOString()}, null, 2));
+                console.log('Request body:', JSON.stringify({...gameData, name: gameData.name || gameData.title, status: 'active', publishedAt: new Date().toISOString()}, null, 2));
                 
                 const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
                     method: 'POST',
@@ -2314,7 +2314,7 @@
                     body: JSON.stringify({
                         ...gameData,
                         gameId: gameData.gameId || gameData.id, // Include gameId
-                        title: gameData.name, // API expects 'title' not 'name'
+                        name: gameData.name || gameData.title, // API expects 'name' field
                         status: 'active', // Developer can control if game is immediately active
                         publishedAt: new Date().toISOString()
                         // Backend will initialize: plays, likes, rating, commentCount
