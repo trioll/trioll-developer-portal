@@ -3176,23 +3176,17 @@
             const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
             let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
             
-            // If no developer ID but we have a token, use the known developer ID for freddiecaplin@hotmail.com
+            // If no developer ID but we have a token, suggest using Fix Developer ID button
             if (!developerId && token) {
-                // Check if this is the freddiecaplin@hotmail.com account
-                developerId = 'dev_freddi'; // Your known developer ID
-                // Save it for future use
-                localStorage.setItem('developerId', developerId);
-                sessionStorage.setItem('developerId', developerId);
-                
-                // Also save developer info
-                const developerInfo = {
-                    developerId: developerId,
-                    email: 'freddiecaplin@hotmail.com',
-                    companyName: 'Frederick Caplin'
-                };
-                localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
-                
-                outputEl.innerHTML += '<div class="alert alert-info">ℹ️ Set developer ID to dev_freddi</div>';
+                outputEl.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Developer ID Missing</strong><br>
+                        You are logged in but your developer ID is not saved.<br>
+                        <br>
+                        Click the <strong>"Fix Developer ID"</strong> button to retrieve it from the server.
+                    </div>
+                `;
+                return;
             }
             
             if (!token || !developerId) {
@@ -3268,7 +3262,7 @@
             updateDebugStatus();
         }
         
-        function fixDeveloperId() {
+        async function fixDeveloperId() {
             const outputEl = document.getElementById('debugOutput');
             const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
             
@@ -3282,43 +3276,69 @@
                 return;
             }
             
-            // Set the developer ID for freddiecaplin@hotmail.com
-            const developerId = 'dev_freddi';
-            localStorage.setItem('developerId', developerId);
-            sessionStorage.setItem('developerId', developerId);
+            outputEl.innerHTML = '<div class="alert alert-info">🔄 Fetching developer info from server...</div>';
             
-            // Also save complete developer info
-            const developerInfo = {
-                developerId: developerId,
-                email: 'freddiecaplin@hotmail.com',
-                companyName: 'Frederick Caplin',
-                firstName: 'Frederick',
-                lastName: 'Caplin'
-            };
-            localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
-            
-            outputEl.innerHTML = `
-                <div class="alert alert-success">
-                    <strong>✅ Developer ID Fixed</strong><br>
-                    Developer ID set to: <code>${developerId}</code><br>
-                    Company: Frederick Caplin<br>
-                    <br>
-                    Now try the "Test API Connection" button again.
-                </div>
-            `;
-            
-            // Update the status display
-            updateDebugStatus();
-            
-            // Also update any developer ID fields on the page
-            const developerIdField = document.getElementById('developerId');
-            if (developerIdField) {
-                developerIdField.value = developerId;
-            }
-            
-            // Populate dashboard if we're on dashboard tab
-            if (typeof populateDeveloperId === 'function') {
-                populateDeveloperId();
+            try {
+                // Call the developers/me endpoint to get current user's developer info
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/me`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}: ${await response.text()}`);
+                }
+                
+                const developerInfo = await response.json();
+                
+                if (developerInfo && developerInfo.developerId) {
+                    // Save the developer ID and info
+                    localStorage.setItem('developerId', developerInfo.developerId);
+                    sessionStorage.setItem('developerId', developerInfo.developerId);
+                    localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+                    
+                    outputEl.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>✅ Developer ID Retrieved</strong><br>
+                            Developer ID: <code>${developerInfo.developerId}</code><br>
+                            Email: ${developerInfo.email || 'N/A'}<br>
+                            Company: ${developerInfo.companyName || 'N/A'}<br>
+                            <br>
+                            Now try the "Test API Connection" button again.
+                        </div>
+                    `;
+                    
+                    // Update the status display
+                    updateDebugStatus();
+                    
+                    // Also update any developer ID fields on the page
+                    const developerIdField = document.getElementById('developerId');
+                    if (developerIdField) {
+                        developerIdField.value = developerInfo.developerId;
+                    }
+                    
+                    // Populate dashboard if we're on dashboard tab
+                    if (typeof populateDeveloperId === 'function') {
+                        populateDeveloperId();
+                    }
+                } else {
+                    throw new Error('No developer ID in response');
+                }
+                
+            } catch (error) {
+                console.error('Error fetching developer info:', error);
+                outputEl.innerHTML = `
+                    <div class="alert alert-error">
+                        <strong>❌ Error Fetching Developer Info</strong><br>
+                        ${error.message}<br>
+                        <br>
+                        <small>This might mean the /developers/me endpoint is not implemented yet. 
+                        You may need to manually set your developer ID or check the backend implementation.</small>
+                    </div>
+                `;
             }
         }
 
