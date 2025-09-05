@@ -2,9 +2,7 @@
 class AuthService {
     constructor() {
         this.apiEndpoint = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
-        // IMPORTANT: Using mobile app client ID as backend expects it
-        // The backend Lambda uses: bft50gui77sdq2n4lcio4onql
-        this.clientId = 'bft50gui77sdq2n4lcio4onql'; // Using mobile app client ID (backend expects this)
+        this.clientId = '5joogquqr4jgukp7mncgp3g23h'; // Developer portal client ID
         
         // Check both localStorage (remember me) and sessionStorage
         this.token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
@@ -97,16 +95,31 @@ class AuthService {
             }
 
             // Store tokens
+            console.log('[AUTH-SERVICE] Login response:', data);
+            console.log('[AUTH-SERVICE] Tokens received:', {
+                idToken: data.tokens?.idToken ? 'YES' : 'NO',
+                accessToken: data.tokens?.accessToken ? 'YES' : 'NO',
+                refreshToken: data.tokens?.refreshToken ? 'YES' : 'NO'
+            });
+            
             this.token = data.tokens.idToken;
             this.refreshToken = data.tokens.refreshToken;
             
             if (rememberMe) {
+                console.log('[AUTH-SERVICE] Storing tokens in localStorage');
                 localStorage.setItem('developerToken', this.token);
                 localStorage.setItem('developerRefreshToken', this.refreshToken);
             } else {
+                console.log('[AUTH-SERVICE] Storing tokens in sessionStorage');
                 sessionStorage.setItem('developerToken', this.token);
                 sessionStorage.setItem('developerRefreshToken', this.refreshToken);
             }
+            
+            // Verify storage
+            console.log('[AUTH-SERVICE] Verification - Token stored:', {
+                localStorage: !!localStorage.getItem('developerToken'),
+                sessionStorage: !!sessionStorage.getItem('developerToken')
+            });
 
             // Store developer info
             if (data.developer) {

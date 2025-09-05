@@ -1,0 +1,11 @@
+{
+  "name": "unified-developers-api",
+  "version": "2.0.0",
+  "description": "Multi-client authentication API supporting mobile app and developer portal",
+  "main": "index.js",
+  "dependencies": {
+    "aws-sdk": "^2.1563.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0"
+  }
+}
