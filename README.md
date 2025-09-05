@@ -106,7 +106,7 @@ If you see CORS errors in the browser console:
 The portal uses these API endpoints:
 - `POST /games` - Upload new game (requires: name, description, category, developerId)
 - `GET /games` - List all games
-- `GET /developers/me` - Get current developer info
+- `GET /developers/profile` - Get current developer profile (requires auth)
 - `GET /developers/{developerId}/games` - Get games by developer
 
 ## Security Note
