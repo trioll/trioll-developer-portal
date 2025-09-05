@@ -2620,9 +2620,17 @@
                 
                 // Filter out stats records (version: "v0") - only show actual games
                 const actualGames = allItems.filter(game => {
-                    // Keep only main game records (version 1.0.0 or similar)
-                    // Stats records have version: "v0"
-                    return game.version && game.version !== 'v0';
+                    // Keep games that either:
+                    // 1. Have no version field (legacy games), OR
+                    // 2. Have version but it's not "v0" (stats record)
+                    const isStatsRecord = game.version === 'v0';
+                    const shouldKeep = !isStatsRecord;
+                    
+                    if (!shouldKeep) {
+                        console.log(`Filtering out stats record: ${game.gameId}`);
+                    }
+                    
+                    return shouldKeep;
                 });
                 
                 console.log(`Filtered ${actualGames.length} actual games from ${allItems.length} total records`);
@@ -2848,7 +2856,11 @@
                     console.log(`Total items in system: ${allItems.length}`);
                     
                     // First filter out stats records (version: "v0")
-                    const actualGames = allItems.filter(game => game.version && game.version !== 'v0');
+                    const actualGames = allItems.filter(game => {
+                        // Keep games that are NOT stats records
+                        // Stats records have version: "v0"
+                        return game.version !== 'v0';
+                    });
                     console.log(`Actual games (excluding stats): ${actualGames.length}`);
                     
                     // Then filter games by developerId
