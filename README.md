@@ -7,16 +7,23 @@ A web-based developer portal for the TRIOLL gaming platform, allowing developers
 - 🔒 Secure PIN-protected access (PIN: 477235)
 - 🎮 Game upload functionality with AWS S3 integration
 - 📊 Developer dashboard with analytics
-- 🎨 Interactive particle effects and animations
+- 🎨 Shooting stars background effect (matching trioll.com)
 - 📱 Responsive design with iPhone-style lock screen
+- 🆕 Game stage tracking (Pre-release/Released)
+- 📱 Multi-platform device compatibility selection
+- 🎯 Advanced control style options
+- 💾 Automatic game metadata storage in DynamoDB
 
 ## Technology Stack
 
 - HTML5/CSS3/JavaScript (Vanilla)
 - AWS SDK for browser
 - AWS S3 for game storage
+- AWS DynamoDB for game metadata
+- AWS Lambda for backend API
+- AWS API Gateway REST API
 - AWS Cognito for authentication
-- Canvas API for particle effects
+- Canvas API for shooting stars effect
 
 ## Deployment
 

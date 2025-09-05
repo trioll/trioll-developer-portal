@@ -1,0 +1,14 @@
+{
+    "IdentityPoolId": "us-east-1:c740f334-5bd2-43c6-85b9-48bfebf27268",
+    "IdentityPoolName": "TriollMobileIdentityPool",
+    "AllowUnauthenticatedIdentities": true,
+    "AllowClassicFlow": true,
+    "CognitoIdentityProviders": [
+        {
+            "ProviderName": "cognito-idp.us-east-1.amazonaws.com/us-east-1_cLPH2acQd",
+            "ClientId": "bft50gui77sdq2n4lcio4onql",
+            "ServerSideTokenCheck": true
+        }
+    ],
+    "IdentityPoolTags": {}
+}

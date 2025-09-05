@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Developer Info</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .debug-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { border-left: 4px solid #10b981; }
+        .error { border-left: 4px solid #ef4444; }
+    </style>
+</head>
+<body>
+    <h1>Debug Developer Info</h1>
+    
+    <div class="debug-section">
+        <h2>1. Check Auth Status</h2>
+        <button onclick="checkAuth()">Check Authentication</button>
+        <div id="authResult" class="result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>2. Check Stored Data</h2>
+        <button onclick="checkStoredData()">Check LocalStorage</button>
+        <div id="storageResult" class="result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>3. Load Developer Profile</h2>
+        <button onclick="loadProfile()">Load Profile from API</button>
+        <div id="profileResult" class="result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>4. Test UI Population</h2>
+        <button onclick="testUIPopulation()">Test Populate Functions</button>
+        <div id="uiResult" class="result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>5. Force Refresh All</h2>
+        <button onclick="forceRefresh()">Force Refresh Everything</button>
+        <div id="refreshResult" class="result"></div>
+    </div>
+
+    <script>
+        function checkAuth() {
+            const resultDiv = document.getElementById('authResult');
+            try {
+                if (typeof auth !== 'undefined') {
+                    const isAuth = auth.isAuthenticated();
+                    const token = auth.token;
+                    const developerInfo = auth.developerInfo;
+                    
+                    resultDiv.className = 'result ' + (isAuth ? 'success' : 'error');
+                    resultDiv.textContent = `Authenticated: ${isAuth}
+Token exists: ${!!token}
+Developer Info: ${JSON.stringify(developerInfo, null, 2)}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = 'Auth service not loaded';
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        function checkStoredData() {
+            const resultDiv = document.getElementById('storageResult');
+            try {
+                const token = localStorage.getItem('developerToken');
+                const developerInfo = localStorage.getItem('developerInfo');
+                const parsedInfo = developerInfo ? JSON.parse(developerInfo) : null;
+                
+                resultDiv.className = 'result';
+                resultDiv.textContent = `Token in storage: ${!!token}
+Developer Info in storage: ${!!developerInfo}
+Parsed Developer Info: ${JSON.stringify(parsedInfo, null, 2)}`;
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function loadProfile() {
+            const resultDiv = document.getElementById('profileResult');
+            resultDiv.textContent = 'Loading profile...';
+            
+            try {
+                if (typeof auth !== 'undefined' && auth.token) {
+                    const profile = await auth.loadDeveloperProfile();
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `Profile loaded: ${JSON.stringify(profile, null, 2)}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = 'Not authenticated or auth service not loaded';
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        function testUIPopulation() {
+            const resultDiv = document.getElementById('uiResult');
+            try {
+                if (typeof auth !== 'undefined') {
+                    // Check if elements exist
+                    const uploadInfo = document.getElementById('uploadDeveloperInfo');
+                    const dashboardInfo = document.getElementById('dashboardDeveloperInfo');
+                    
+                    resultDiv.textContent = `Upload info element exists: ${!!uploadInfo}
+Dashboard info element exists: ${!!dashboardInfo}
+
+Calling populate functions...`;
+                    
+                    auth.populateUploadForm();
+                    auth.updateDashboardInfo();
+                    
+                    setTimeout(() => {
+                        const devIdField = document.getElementById('developerIdDisplay');
+                        const dashDevId = document.getElementById('dashboardDeveloperId');
+                        
+                        resultDiv.textContent += `
+
+After population:
+Developer ID field exists: ${!!devIdField}
+Developer ID value: ${devIdField?.value || 'N/A'}
+Dashboard dev ID exists: ${!!dashDevId}
+Dashboard dev ID text: ${dashDevId?.textContent || 'N/A'}`;
+                    }, 100);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = 'Auth service not loaded';
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function forceRefresh() {
+            const resultDiv = document.getElementById('refreshResult');
+            resultDiv.textContent = 'Refreshing...';
+            
+            try {
+                if (typeof auth !== 'undefined') {
+                    // Force load profile
+                    await auth.loadDeveloperProfile();
+                    
+                    // Force populate all UI elements
+                    auth.updateDeveloperBadge();
+                    auth.populateUploadForm();
+                    auth.updateDashboardInfo();
+                    
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ All functions called successfully
+Developer Info: ${JSON.stringify(auth.developerInfo, null, 2)}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = 'Auth service not loaded';
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Auto-check on load
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                checkAuth();
+                checkStoredData();
+            }, 1000);
+        });
+    </script>
+    
+    <!-- Include auth service -->
+    <script src="auth-service.js"></script>
+</body>
+</html>

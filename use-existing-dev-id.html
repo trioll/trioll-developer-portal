@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Developer ID</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+            text-align: center;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            margin: 10px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .info {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .dev-id {
+            font-size: 24px;
+            color: #60a5fa;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Choose Your Developer ID</h1>
+    
+    <div class="info">
+        <p>Your account has two possible developer IDs:</p>
+        <div class="dev-id">dev_c84a7e</div>
+        <p>(Original ID from database)</p>
+        <div class="dev-id">dev_freddi</div>
+        <p>(Generated from your email)</p>
+    </div>
+    
+    <button onclick="useOriginalId()">Use dev_c84a7e</button>
+    <button onclick="useNewId()">Use dev_freddi</button>
+    
+    <p style="margin-top: 30px; opacity: 0.7;">
+        Note: dev_freddi is recommended as it follows the new naming pattern
+    </p>
+
+    <script>
+        function updateDeveloperInfo(devId, displayName) {
+            const developerInfo = {
+                developerId: devId,
+                companyName: displayName || 'FreddieTrioll',
+                email: 'freddiecaplin@hotmail.com',
+                username: displayName || 'FreddieTrioll',
+                userType: 'developer',
+                joinDate: '2025-09-04T14:12:50.291Z'
+            };
+            
+            localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+            
+            alert(`Developer ID set to: ${devId}\n\nReturning to portal...`);
+            window.location.href = 'index.html';
+        }
+        
+        function useOriginalId() {
+            updateDeveloperInfo('dev_c84a7e', 'FreddieTrioll');
+        }
+        
+        function useNewId() {
+            updateDeveloperInfo('dev_freddi', 'freddiecaplin');
+        }
+    </script>
+</body>
+</html>

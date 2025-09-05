@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Developer ID System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f0f0f;
+            color: #fff;
+        }
+        .test-section {
+            background: #1a1a1a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #0f0f0f;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        .success { border-left: 4px solid #10b981; }
+        .error { border-left: 4px solid #ef4444; }
+        .warning { border-left: 4px solid #f59e0b; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            color: #fff;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Developer ID System</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Login with Your Account</h2>
+        <input type="email" id="email" value="freddiecaplin@hotmail.com" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="testLogin()">Test Login</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Get Developer Profile</h2>
+        <button onclick="getProfile()">Get Profile</button>
+        <div id="profileResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test Similar Email IDs</h2>
+        <button onclick="testSimilarEmails()">Test ID Generation</button>
+        <div id="similarResult" class="result"></div>
+    </div>
+
+    <script>
+        let authToken = null;
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        async function testLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!password) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Please enter your password';
+                return;
+            }
+            
+            resultDiv.className = 'result';
+            resultDiv.textContent = 'Testing login...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/developers/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    authToken = data.tokens.idToken;
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = '✅ Login successful!\n\n';
+                    resultDiv.textContent += 'Developer Info:\n';
+                    resultDiv.textContent += JSON.stringify(data.developer, null, 2);
+                    
+                    // Store token for other tests
+                    localStorage.setItem('testAuthToken', authToken);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Login failed: ${data.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function getProfile() {
+            const resultDiv = document.getElementById('profileResult');
+            
+            // Try to use stored token if no fresh login
+            if (!authToken) {
+                authToken = localStorage.getItem('testAuthToken');
+            }
+            
+            if (!authToken) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '❌ Please login first';
+                return;
+            }
+            
+            resultDiv.className = 'result';
+            resultDiv.textContent = 'Getting profile...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/developers/profile`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = '✅ Profile loaded!\n\n';
+                    resultDiv.textContent += JSON.stringify(data.developer, null, 2);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Failed to get profile: ${data.message || response.status}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function testSimilarEmails() {
+            const resultDiv = document.getElementById('similarResult');
+            resultDiv.className = 'result';
+            resultDiv.textContent = 'Testing similar email ID generation...\n\n';
+            
+            const testEmails = [
+                'freddiecaplin@hotmail.com',
+                'freddiecaplin1@hotmail.com',
+                'freddiecaplin2@hotmail.com',
+                'freddiecaplin@gmail.com',
+                'freddiecaplin_work@hotmail.com'
+            ];
+            
+            resultDiv.textContent += 'Expected Developer IDs:\n';
+            testEmails.forEach(email => {
+                const username = email.split('@')[0].toLowerCase();
+                const baseId = username.substring(0, 6).padEnd(6, '0').replace(/[^a-z0-9]/g, '0');
+                resultDiv.textContent += `${email} → dev_${baseId}X\n`;
+            });
+            
+            resultDiv.textContent += '\nNote: The "X" would be replaced by:\n';
+            resultDiv.textContent += '- Nothing for the first occurrence\n';
+            resultDiv.textContent += '- "1" for the second occurrence\n';
+            resultDiv.textContent += '- "2" for the third occurrence, etc.\n';
+            
+            resultDiv.textContent += '\n📝 The backend will automatically assign unique IDs when these accounts are created.';
+        }
+        
+        // Auto-check for existing token
+        window.addEventListener('DOMContentLoaded', () => {
+            const storedToken = localStorage.getItem('testAuthToken');
+            if (storedToken) {
+                authToken = storedToken;
+                document.getElementById('loginResult').className = 'result warning';
+                document.getElementById('loginResult').textContent = '⚠️  Using stored token from previous login';
+            }
+        });
+    </script>
+</body>
+</html>
