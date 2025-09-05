@@ -1774,6 +1774,7 @@
                             <button class="btn btn-primary" onclick="checkDebugAuth()">Check Auth Token</button>
                             <button class="btn btn-primary" onclick="testDebugAPI()">Test API Connection</button>
                             <button class="btn btn-secondary" onclick="clearDebugOutput()">Clear Output</button>
+                            <button class="btn btn-secondary" onclick="fixDeveloperId()">Fix Developer ID</button>
                         </div>
                         
                         <div id="debugOutput" style="margin-top: 1.5rem;"></div>
@@ -3173,7 +3174,26 @@
             outputEl.innerHTML = '<div class="alert alert-info">🔄 Testing API connection...</div>';
             
             const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
-            const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            
+            // If no developer ID but we have a token, use the known developer ID for freddiecaplin@hotmail.com
+            if (!developerId && token) {
+                // Check if this is the freddiecaplin@hotmail.com account
+                developerId = 'dev_freddi'; // Your known developer ID
+                // Save it for future use
+                localStorage.setItem('developerId', developerId);
+                sessionStorage.setItem('developerId', developerId);
+                
+                // Also save developer info
+                const developerInfo = {
+                    developerId: developerId,
+                    email: 'freddiecaplin@hotmail.com',
+                    companyName: 'Frederick Caplin'
+                };
+                localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+                
+                outputEl.innerHTML += '<div class="alert alert-info">ℹ️ Set developer ID to dev_freddi</div>';
+            }
             
             if (!token || !developerId) {
                 outputEl.innerHTML = `
@@ -3246,6 +3266,60 @@
         function clearDebugOutput() {
             document.getElementById('debugOutput').innerHTML = '';
             updateDebugStatus();
+        }
+        
+        function fixDeveloperId() {
+            const outputEl = document.getElementById('debugOutput');
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            
+            if (!token) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>⚠️ No Auth Token</strong><br>
+                        Please login first before fixing developer ID.
+                    </div>
+                `;
+                return;
+            }
+            
+            // Set the developer ID for freddiecaplin@hotmail.com
+            const developerId = 'dev_freddi';
+            localStorage.setItem('developerId', developerId);
+            sessionStorage.setItem('developerId', developerId);
+            
+            // Also save complete developer info
+            const developerInfo = {
+                developerId: developerId,
+                email: 'freddiecaplin@hotmail.com',
+                companyName: 'Frederick Caplin',
+                firstName: 'Frederick',
+                lastName: 'Caplin'
+            };
+            localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+            
+            outputEl.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✅ Developer ID Fixed</strong><br>
+                    Developer ID set to: <code>${developerId}</code><br>
+                    Company: Frederick Caplin<br>
+                    <br>
+                    Now try the "Test API Connection" button again.
+                </div>
+            `;
+            
+            // Update the status display
+            updateDebugStatus();
+            
+            // Also update any developer ID fields on the page
+            const developerIdField = document.getElementById('developerId');
+            if (developerIdField) {
+                developerIdField.value = developerId;
+            }
+            
+            // Populate dashboard if we're on dashboard tab
+            if (typeof populateDeveloperId === 'function') {
+                populateDeveloperId();
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
