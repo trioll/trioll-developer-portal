@@ -1777,6 +1777,16 @@
                             <button class="btn btn-secondary" onclick="fixDeveloperId()">Fix Developer ID</button>
                         </div>
                         
+                        <h3 style="margin-top: 2rem;">Backend Status Tests</h3>
+                        <p style="color: var(--text-gray-400); margin-bottom: 1rem;">
+                            Test backend endpoints directly to diagnose issues.
+                        </p>
+                        <div class="button-group" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <button class="btn btn-primary" onclick="testLoginEndpoint()">Test Login Endpoint</button>
+                            <button class="btn btn-primary" onclick="testProfileEndpoint()">Test Profile Endpoint</button>
+                            <button class="btn btn-primary" onclick="testGamesEndpoint()">Test Games API</button>
+                        </div>
+                        
                         <div id="debugOutput" style="margin-top: 1.5rem;"></div>
                         
                         <div style="margin-top: 2rem; padding: 1rem; background: #3a3a1a; border: 1px solid #fbbf24; border-radius: 8px;">
@@ -3331,6 +3341,154 @@
         function clearDebugOutput() {
             document.getElementById('debugOutput').innerHTML = '';
             updateDebugStatus();
+        }
+        
+        // Backend status test functions
+        async function testLoginEndpoint() {
+            const outputEl = document.getElementById('debugOutput');
+            outputEl.innerHTML = '<div class="alert alert-info">🔄 Testing login endpoint...</div>';
+            
+            try {
+                // Test with invalid credentials to see if endpoint exists
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'test@test.com',
+                        password: 'test123'
+                    })
+                });
+                
+                const data = await response.text();
+                
+                outputEl.innerHTML = `
+                    <div class="alert alert-${response.status === 401 ? 'success' : 'error'}">
+                        <strong>${response.status === 401 ? '✅' : '❌'} Login Endpoint Status</strong><br>
+                        Status: ${response.status} ${response.statusText}<br>
+                        <pre style="background: #1a1a1a; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify({
+                            status: response.status,
+                            headers: {
+                                'content-type': response.headers.get('content-type'),
+                                'x-amzn-requestid': response.headers.get('x-amzn-requestid')
+                            },
+                            response: data
+                        }, null, 2)}</pre>
+                        ${response.status === 401 ? '<br><small>✅ Endpoint is working correctly (401 = invalid credentials as expected)</small>' : ''}
+                    </div>
+                `;
+                
+            } catch (error) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-error">
+                        <strong>❌ Network Error</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        async function testProfileEndpoint() {
+            const outputEl = document.getElementById('debugOutput');
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            
+            if (!token) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>⚠️ No Token</strong><br>
+                        Please login first to test the profile endpoint.
+                    </div>
+                `;
+                return;
+            }
+            
+            outputEl.innerHTML = '<div class="alert alert-info">🔄 Testing profile endpoint...</div>';
+            
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/profile`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.text();
+                let parsedData;
+                try {
+                    parsedData = JSON.parse(data);
+                } catch (e) {
+                    parsedData = data;
+                }
+                
+                outputEl.innerHTML = `
+                    <div class="alert alert-${response.ok ? 'success' : 'error'}">
+                        <strong>${response.ok ? '✅' : '❌'} Profile Endpoint Status</strong><br>
+                        Status: ${response.status} ${response.statusText}<br>
+                        <pre style="background: #1a1a1a; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify({
+                            status: response.status,
+                            headers: {
+                                'content-type': response.headers.get('content-type'),
+                                'x-amzn-errortype': response.headers.get('x-amzn-errortype')
+                            },
+                            response: parsedData
+                        }, null, 2)}</pre>
+                        ${!response.ok && parsedData.message ? `<br><small>Error: ${parsedData.message}</small>` : ''}
+                    </div>
+                `;
+                
+            } catch (error) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-error">
+                        <strong>❌ Network Error</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        async function testGamesEndpoint() {
+            const outputEl = document.getElementById('debugOutput');
+            outputEl.innerHTML = '<div class="alert alert-info">🔄 Testing games API...</div>';
+            
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`);
+                const data = await response.text();
+                
+                let parsedData;
+                try {
+                    parsedData = JSON.parse(data);
+                    // Only show first 3 games to keep output readable
+                    if (parsedData.games && parsedData.games.length > 3) {
+                        const totalGames = parsedData.games.length;
+                        parsedData.games = parsedData.games.slice(0, 3);
+                        parsedData.truncated = true;
+                        parsedData.message = `Showing 3 of ${totalGames} games`;
+                    }
+                } catch (e) {
+                    parsedData = data;
+                }
+                
+                outputEl.innerHTML = `
+                    <div class="alert alert-${response.ok ? 'success' : 'error'}">
+                        <strong>${response.ok ? '✅' : '❌'} Games API Status</strong><br>
+                        Status: ${response.status} ${response.statusText}<br>
+                        <pre style="background: #1a1a1a; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify({
+                            status: response.status,
+                            response: parsedData
+                        }, null, 2)}</pre>
+                    </div>
+                `;
+                
+            } catch (error) {
+                outputEl.innerHTML = `
+                    <div class="alert alert-error">
+                        <strong>❌ Network Error</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
         }
         
         async function fixDeveloperId() {
