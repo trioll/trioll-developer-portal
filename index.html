@@ -1806,6 +1806,55 @@
     </div>
 
     <script>
+        // Token validation utilities
+        function isTokenExpired(token) {
+            if (!token) return true;
+            
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) return true;
+                
+                const payload = JSON.parse(atob(parts[1]));
+                const exp = payload.exp;
+                
+                if (!exp) return false;
+                
+                const now = Math.floor(Date.now() / 1000);
+                return exp < now;
+            } catch (error) {
+                console.error('Error checking token expiry:', error);
+                return true;
+            }
+        }
+
+        function validateAndGetToken() {
+            let token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            
+            if (!token) {
+                return null;
+            }
+            
+            if (isTokenExpired(token)) {
+                console.log('Token expired, clearing storage');
+                // Clear expired tokens
+                localStorage.removeItem('developerToken');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('developerId');
+                localStorage.removeItem('developerInfo');
+                sessionStorage.removeItem('developerToken');
+                sessionStorage.removeItem('refreshToken');
+                sessionStorage.removeItem('developerId');
+                sessionStorage.removeItem('developerInfo');
+                
+                // Show login form
+                showTab('login');
+                showAlert('Your session has expired. Please login again.', 'warning');
+                return null;
+            }
+            
+            return token;
+        }
+
         // AWS Configuration
         const AWS_CONFIG = {
             region: 'us-east-1',
@@ -2338,8 +2387,11 @@
         // Save game to backend
         async function saveGameToDatabase(gameData) {
             try {
-                // Get auth token for API call
-                const authToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                // Get auth token for API call with validation
+                const authToken = validateAndGetToken();
+                if (!authToken) {
+                    throw new Error('Session expired. Please login again.');
+                }
                 
                 // Determine the proper origin
                 let origin = window.location.origin;
@@ -2618,7 +2670,11 @@
             
             try {
                 // First try to get developer's games from the API
-                const authToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                const authToken = validateAndGetToken();
+                if (!authToken) {
+                    myGamesGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center;">Please login to see your games.</div>';
+                    return;
+                }
                 const headers = {
                     'Content-Type': 'application/json',
                     'Origin': window.location.origin
