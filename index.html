@@ -2062,6 +2062,10 @@
         // S3 Game Uploader Class
         class S3GameUploader {
             constructor() {
+                // Get the current s3 instance, throw error if not initialized
+                if (!s3) {
+                    throw new Error('AWS S3 not initialized. Please ensure you are logged in.');
+                }
                 this.s3 = s3;
             }
             
@@ -3095,6 +3099,19 @@
             spinner.style.display = 'block';
             
             try {
+                // Ensure AWS is initialized before creating uploader
+                if (!awsInitialized || !s3) {
+                    console.log('AWS not initialized, attempting to initialize...');
+                    await initializeAWS();
+                    
+                    // Wait a bit for initialization to complete
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    if (!s3) {
+                        throw new Error('AWS S3 failed to initialize. Please check your login status.');
+                    }
+                }
+                
                 const uploader = new S3GameUploader();
                 
                 const gameData = {
