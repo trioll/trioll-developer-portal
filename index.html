@@ -1949,6 +1949,54 @@
     </div>
 
     <script>
+        // Create a simple auth object if auth-service.js hasn't loaded yet
+        if (typeof auth === 'undefined') {
+            console.log('Creating fallback auth object');
+            window.auth = {
+                token: null,
+                refreshToken: null,
+                developerInfo: {},
+                
+                isAuthenticated() {
+                    this.token = this.token || localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                    return !!this.token;
+                },
+                
+                getAuthHeaders() {
+                    this.token = this.token || localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                    if (!this.token) return {};
+                    return {
+                        'Authorization': `Bearer ${this.token}`,
+                        'X-App-Client': 'developer-portal'
+                    };
+                },
+                
+                refreshFromStorage() {
+                    this.token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+                    this.refreshToken = localStorage.getItem('developerRefreshToken') || sessionStorage.getItem('developerRefreshToken');
+                    const devInfo = localStorage.getItem('developerInfo');
+                    if (devInfo) {
+                        try {
+                            this.developerInfo = JSON.parse(devInfo);
+                        } catch (e) {
+                            console.error('Error parsing developer info:', e);
+                        }
+                    }
+                    
+                    // Also ensure developerId is in localStorage
+                    if (this.developerInfo && this.developerInfo.developerId) {
+                        localStorage.setItem('developerId', this.developerInfo.developerId);
+                    }
+                    
+                    return !!this.token;
+                },
+                
+                startTokenRefreshTimer() {
+                    console.log('Token refresh timer would start here');
+                }
+            };
+        }
+        
         // Token validation utilities
         function isTokenExpired(token) {
             if (!token) return true;
@@ -2978,13 +3026,21 @@
                                sessionStorage.getItem('developerId');
             
             if (!developerId) {
-                myGamesGrid.innerHTML = `
-                    <div style="grid-column: 1/-1; text-align: center; color: var(--text-gray-400); padding: 3rem;">
-                        <p>Unable to load games - Developer ID not found</p>
-                        <p style="margin-top: 1rem;">Please refresh the page and try again</p>
-                    </div>
-                `;
-                return;
+                console.log('No developer ID found. Checking auth service...');
+                
+                // Try to get from auth service
+                if (typeof auth !== 'undefined' && auth.developerInfo && auth.developerInfo.developerId) {
+                    localStorage.setItem('developerId', auth.developerInfo.developerId);
+                } else {
+                    myGamesGrid.innerHTML = `
+                        <div style="grid-column: 1/-1; text-align: center; color: var(--text-gray-400); padding: 3rem;">
+                            <p>Unable to load games - Developer ID not found</p>
+                            <p style="margin-top: 1rem;">Please login to view your games</p>
+                            <button class="btn btn-primary" onclick="showAuthScreen()" style="margin-top: 1rem;">Login</button>
+                        </div>
+                    `;
+                    return;
+                }
             }
             
             myGamesGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center;">Loading your games...</div>';
@@ -4446,9 +4502,28 @@
                 console.log('Verification - token in storage:', verifyToken ? 'YES' : 'NO');
                 
                 // CRITICAL: Update the auth service instance with new tokens
-                if (typeof auth !== 'undefined' && auth.refreshFromStorage) {
+                if (typeof auth !== 'undefined') {
                     console.log('Updating auth service with new tokens...');
-                    auth.refreshFromStorage();
+                    // Update auth service properties directly
+                    auth.token = authToken;
+                    auth.refreshToken = tokens.refreshToken;
+                    auth.developerInfo = developer || {};
+                    
+                    // Save developer info
+                    if (developer && developer.developerId) {
+                        localStorage.setItem('developerInfo', JSON.stringify(developer));
+                        localStorage.setItem('developerId', developer.developerId);
+                    }
+                    
+                    // Call refresh from storage to ensure sync
+                    if (auth.refreshFromStorage) {
+                        auth.refreshFromStorage();
+                    }
+                    
+                    // Start token refresh timer
+                    if (auth.startTokenRefreshTimer) {
+                        auth.startTokenRefreshTimer();
+                    }
                 }
                 
                 // Reinitialize AWS with authenticated credentials
@@ -4603,11 +4678,20 @@
             }
         }
         
+        // Show auth screen
+        function showAuthScreen() {
+            const authModal = document.getElementById('authModal');
+            if (authModal) {
+                authModal.style.display = 'flex';
+            }
+        }
+        
         // Make functions globally available
         window.handleLogin = handleLogin;
         window.handleSignup = handleSignup;
         window.forceReloadWithoutCache = forceReloadWithoutCache;
         window.clearAllStorageAndReload = clearAllStorageAndReload;
+        window.showAuthScreen = showAuthScreen;
 
         window.addEventListener('DOMContentLoaded', () => {
             console.log('Page loaded - initializing Trioll Developer Portal');
