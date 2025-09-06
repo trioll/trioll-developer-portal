@@ -4816,9 +4816,12 @@
                     </div>
                 `;
                 
-                // Get developer's games with stats
-                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/games`, {
-                    headers: auth.getAuthHeaders()
+                // Get all games first
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    }
                 });
                 
                 if (!response.ok) {
@@ -4826,7 +4829,38 @@
                 }
                 
                 const data = await response.json();
-                analyticsData.games = data.games || [];
+                const allGames = data.games || [];
+                
+                // Get developer ID
+                const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                
+                if (!developerId) {
+                    throw new Error('Developer ID not found');
+                }
+                
+                // Debug logging
+                console.log('Analytics: Total games found:', allGames.length);
+                console.log('Analytics: Developer ID:', developerId);
+                console.log('Analytics: Sample game:', allGames[0]);
+                
+                // Filter games by developer
+                analyticsData.games = allGames.filter(game => {
+                    // Check if game belongs to this developer
+                    const belongsToDeveloper = game.developerId === developerId || game.developer === developerId;
+                    
+                    if (allGames.length < 10) { // Only log for small datasets to avoid spam
+                        console.log(`Game ${game.id || game.gameId}: developerId=${game.developerId}, belongs=${belongsToDeveloper}`);
+                    }
+                    
+                    return belongsToDeveloper;
+                });
+                
+                console.log('Analytics: Games after filtering:', analyticsData.games.length);
+                
+                // If no games found but API worked, show appropriate message
+                if (allGames.length > 0 && analyticsData.games.length === 0) {
+                    console.log('No games found for this developer, but other games exist');
+                }
                 
                 // Calculate aggregate stats
                 calculateAnalyticsStats();
@@ -4886,50 +4920,86 @@
             }
             
             const tableHTML = `
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Game</th>
-                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Plays</th>
-                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Likes</th>
-                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Rating</th>
-                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Comments</th>
-                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${analyticsData.games.map(game => `
-                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                                <td style="padding: 1rem 0.75rem;">
-                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                        <img src="${game.thumbnailUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"%3E%3Crect width="48" height="48" fill="%23333"%3E%3C/rect%3E%3Ctext x="24" y="28" text-anchor="middle" fill="%23666" font-size="20"%3E🎮%3C/text%3E%3C/svg%3E'}" 
-                                             alt="${game.name}" 
-                                             style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover;"
-                                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'48\\' height=\\'48\\' viewBox=\\'0 0 48 48\\'%3E%3Crect width=\\'48\\' height=\\'48\\' fill=\\'%23333\\'%3E%3C/rect%3E%3Ctext x=\\'24\\' y=\\'28\\' text-anchor=\\'middle\\' fill=\\'%23666\\' font-size=\\'20\\'%3E🎮%3C/text%3E%3C/svg%3E'">
-                                        <div>
-                                            <div style="font-weight: 500; color: var(--text-gray-200);">${game.name || game.title}</div>
-                                            <div style="font-size: 0.85rem; color: var(--text-gray-400);">${game.category || 'Uncategorized'}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td style="padding: 1rem 0.75rem; font-weight: 600;">${formatNumber(game.playCount || 0)}</td>
-                                <td style="padding: 1rem 0.75rem; font-weight: 600;">${formatNumber(game.likeCount || 0)}</td>
-                                <td style="padding: 1rem 0.75rem;">
-                                    <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                        <span style="color: #fbbf24;">${generateStars(game.rating || 0)}</span>
-                                        <span style="color: var(--text-gray-400); font-size: 0.9rem;">(${game.ratingCount || 0})</span>
-                                    </div>
-                                </td>
-                                <td style="padding: 1rem 0.75rem; font-weight: 600;">${formatNumber(game.commentCount || 0)}</td>
-                                <td style="padding: 1rem 0.75rem;">
-                                    <span style="color: ${game.status === 'active' ? '#10b981' : '#6b7280'};">
-                                        ${game.status || 'active'}
-                                    </span>
-                                </td>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; min-width: 900px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Game</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Plays</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Likes</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Like Rate</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Rating</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Comments</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Bookmarks</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Engagement</th>
+                                <th style="text-align: center; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Status</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            ${analyticsData.games.map(game => {
+                                const plays = game.playCount || 0;
+                                const likes = game.likeCount || 0;
+                                const comments = game.commentCount || 0;
+                                const bookmarks = game.bookmarkCount || 0;
+                                const likeRate = plays > 0 ? ((likes / plays) * 100).toFixed(1) : '0.0';
+                                const engagementScore = plays > 0 ? (((likes + comments + bookmarks) / plays) * 100).toFixed(1) : '0.0';
+                                
+                                return `
+                                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                    <td style="padding: 1rem 0.75rem;">
+                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <img src="${game.thumbnailUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"%3E%3Crect width="48" height="48" fill="%23333"%3E%3C/rect%3E%3Ctext x="24" y="28" text-anchor="middle" fill="%23666" font-size="20"%3E🎮%3C/text%3E%3C/svg%3E'}" 
+                                                 alt="${game.name}" 
+                                                 style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover;"
+                                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'48\\' height=\\'48\\' viewBox=\\'0 0 48 48\\'%3E%3Crect width=\\'48\\' height=\\'48\\' fill=\\'%23333\\'%3E%3C/rect%3E%3Ctext x=\\'24\\' y=\\'28\\' text-anchor=\\'middle\\' fill=\\'%23666\\' font-size=\\'20\\'%3E🎮%3C/text%3E%3C/svg%3E'">
+                                            <div>
+                                                <div style="font-weight: 500; color: var(--text-gray-200);">${game.name || game.title}</div>
+                                                <div style="font-size: 0.85rem; color: var(--text-gray-400);">${game.category || 'Uncategorized'}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center; font-weight: 600;">${formatNumber(plays)}</td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center;">
+                                        <div style="font-weight: 600;">${formatNumber(likes)}</div>
+                                    </td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center;">
+                                        <span style="color: ${likeRate >= 20 ? '#10b981' : likeRate >= 10 ? '#f59e0b' : '#6b7280'};">
+                                            ${likeRate}%
+                                        </span>
+                                    </td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center;">
+                                        <div style="display: flex; align-items: center; gap: 0.25rem; justify-content: center;">
+                                            <span style="color: #fbbf24;">${generateStars(game.rating || 0)}</span>
+                                            <span style="color: var(--text-gray-400); font-size: 0.9rem;">(${game.ratingCount || 0})</span>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center; font-weight: 600;">${formatNumber(comments)}</td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center; font-weight: 600;">${formatNumber(bookmarks)}</td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center;">
+                                        <span style="color: ${engagementScore >= 30 ? '#10b981' : engagementScore >= 15 ? '#f59e0b' : '#6b7280'}; font-weight: 600;">
+                                            ${engagementScore}%
+                                        </span>
+                                    </td>
+                                    <td style="padding: 1rem 0.75rem; text-align: center;">
+                                        <span style="color: ${game.status === 'active' ? '#10b981' : '#6b7280'};">
+                                            ${game.status || 'active'}
+                                        </span>
+                                    </td>
+                                </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 8px; font-size: 0.9rem;">
+                    <strong>KPI Definitions:</strong>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; margin-top: 0.5rem; color: var(--text-gray-400);">
+                        <div>• <strong>Like Rate:</strong> Likes ÷ Plays</div>
+                        <div>• <strong>Engagement:</strong> (Likes + Comments + Bookmarks) ÷ Plays</div>
+                        <div>• <strong>Rating:</strong> Average user rating (1-5 stars)</div>
+                        <div>• <strong>Bookmarks:</strong> Number of saves by users</div>
+                    </div>
+                </div>
             `;
             
             document.getElementById('analyticsTableContainer').innerHTML = tableHTML;
