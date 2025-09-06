@@ -4915,8 +4915,39 @@
                 const data = await response.json();
                 const allGames = data.games || [];
                 
-                // Get developer ID
-                const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                // Get developer ID from multiple sources
+                let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                
+                // Try to get from auth service if not in storage
+                if (!developerId && typeof auth !== 'undefined') {
+                    if (auth.developerInfo && auth.developerInfo.developerId) {
+                        developerId = auth.developerInfo.developerId;
+                        localStorage.setItem('developerId', developerId);
+                    } else if (auth.refreshFromStorage) {
+                        // Try refreshing auth from storage
+                        auth.refreshFromStorage();
+                        if (auth.developerInfo && auth.developerInfo.developerId) {
+                            developerId = auth.developerInfo.developerId;
+                            localStorage.setItem('developerId', developerId);
+                        }
+                    }
+                }
+                
+                // Last resort - try to get from developer info in storage
+                if (!developerId) {
+                    const devInfo = localStorage.getItem('developerInfo');
+                    if (devInfo) {
+                        try {
+                            const parsed = JSON.parse(devInfo);
+                            if (parsed.developerId) {
+                                developerId = parsed.developerId;
+                                localStorage.setItem('developerId', developerId);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing developer info:', e);
+                        }
+                    }
+                }
                 
                 if (!developerId) {
                     throw new Error('Developer ID not found');
@@ -4956,10 +4987,23 @@
                 
             } catch (error) {
                 console.error('Error loading analytics:', error);
+                
+                let errorMessage = error.message;
+                let actionButton = '';
+                
+                if (error.message.includes('Developer ID not found')) {
+                    errorMessage = 'Developer profile not loaded';
+                    actionButton = '<button class="btn btn-primary" onclick="location.reload()" style="margin-top: 1rem;">Refresh Page</button>';
+                } else if (error.message.includes('Failed to load games')) {
+                    errorMessage = 'Unable to connect to server';
+                    actionButton = '<button class="btn btn-primary" onclick="loadAnalyticsData()" style="margin-top: 1rem;">Try Again</button>';
+                }
+                
                 document.getElementById('analyticsTableContainer').innerHTML = `
                     <div style="text-align: center; padding: 2rem; color: var(--error-color);">
                         <p>Unable to load analytics data</p>
-                        <small>${error.message}</small>
+                        <small>${errorMessage}</small>
+                        ${actionButton}
                     </div>
                 `;
             }
