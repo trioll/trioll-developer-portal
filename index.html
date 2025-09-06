@@ -1746,12 +1746,64 @@
         <!-- Analytics Section -->
         <section id="analytics" class="section">
             <div class="container">
-                <h2 style="font-size: 2rem; margin-bottom: 2rem;">Analytics</h2>
+                <h2 style="font-size: 2rem; margin-bottom: 2rem;">📊 Analytics Dashboard</h2>
                 
-                <div class="upload-section">
-                    <p style="color: var(--text-gray-400);">
-                        Analytics will be available once you have active games on the platform.
-                    </p>
+                <!-- Overview Stats -->
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎮</div>
+                        <div style="color: var(--text-gray-400); font-size: 0.9rem;">Total Games</div>
+                        <div style="font-size: 2rem; font-weight: 600;" id="totalGamesAnalytics">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎯</div>
+                        <div style="color: var(--text-gray-400); font-size: 0.9rem;">Total Plays</div>
+                        <div style="font-size: 2rem; font-weight: 600;" id="totalPlaysAnalytics">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">❤️</div>
+                        <div style="color: var(--text-gray-400); font-size: 0.9rem;">Total Likes</div>
+                        <div style="font-size: 2rem; font-weight: 600;" id="totalLikesAnalytics">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">⭐</div>
+                        <div style="color: var(--text-gray-400); font-size: 0.9rem;">Avg Rating</div>
+                        <div style="font-size: 2rem; font-weight: 600;" id="avgRatingAnalytics">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">💬</div>
+                        <div style="color: var(--text-gray-400); font-size: 0.9rem;">Total Comments</div>
+                        <div style="font-size: 2rem; font-weight: 600;" id="totalCommentsAnalytics">-</div>
+                    </div>
+                </div>
+
+                <!-- Game Performance Table -->
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1.5rem;">Game Performance</h3>
+                        <button class="btn btn-primary" onclick="loadAnalyticsData()" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                            🔄 Refresh Data
+                        </button>
+                    </div>
+                    
+                    <div id="analyticsTableContainer">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-gray-400);">
+                            <div class="loading-spinner"></div>
+                            <p>Loading analytics data...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-top: 2rem;">
+                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem; height: 300px;">
+                        <h4 style="margin-bottom: 1rem;">Play Trends (Last 7 Days)</h4>
+                        <canvas id="playsChartCanvas"></canvas>
+                    </div>
+                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem; height: 300px;">
+                        <h4 style="margin-bottom: 1rem;">Top Games by Engagement</h4>
+                        <canvas id="engagementChartCanvas"></canvas>
+                    </div>
                 </div>
             </div>
         </section>
@@ -4718,5 +4770,302 @@
     <!-- Authentication Service -->
     <script src="auth-service.js"></script>
     <script src="auth-integration.js"></script>
+    
+    <!-- Chart.js for Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Analytics Functions -->
+    <script>
+        // Analytics variables
+        let analyticsData = {
+            games: [],
+            totalGames: 0,
+            totalPlays: 0,
+            totalLikes: 0,
+            totalComments: 0,
+            avgRating: 0
+        };
+        
+        let playsChart = null;
+        let engagementChart = null;
+        
+        // Load analytics data when analytics tab is shown
+        function initAnalytics() {
+            console.log('Initializing analytics...');
+            loadAnalyticsData();
+            setupAnalyticsCharts();
+        }
+        
+        // Load analytics data
+        async function loadAnalyticsData() {
+            if (!auth.isAuthenticated()) {
+                document.getElementById('analyticsTableContainer').innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: var(--text-gray-400);">
+                        <p>Please log in to view analytics</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Show loading state
+                document.getElementById('analyticsTableContainer').innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: var(--text-gray-400);">
+                        <div class="loading-spinner"></div>
+                        <p>Loading analytics data...</p>
+                    </div>
+                `;
+                
+                // Get developer's games with stats
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/games`, {
+                    headers: auth.getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load games');
+                }
+                
+                const data = await response.json();
+                analyticsData.games = data.games || [];
+                
+                // Calculate aggregate stats
+                calculateAnalyticsStats();
+                
+                // Display data
+                displayAnalyticsStats();
+                displayAnalyticsTable();
+                updateAnalyticsCharts();
+                
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                document.getElementById('analyticsTableContainer').innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: var(--error-color);">
+                        <p>Unable to load analytics data</p>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+        
+        // Calculate aggregate statistics
+        function calculateAnalyticsStats() {
+            analyticsData.totalGames = analyticsData.games.length;
+            analyticsData.totalPlays = analyticsData.games.reduce((sum, game) => sum + (game.playCount || 0), 0);
+            analyticsData.totalLikes = analyticsData.games.reduce((sum, game) => sum + (game.likeCount || 0), 0);
+            analyticsData.totalComments = analyticsData.games.reduce((sum, game) => sum + (game.commentCount || 0), 0);
+            
+            // Calculate average rating
+            const gamesWithRating = analyticsData.games.filter(game => game.ratingCount > 0);
+            if (gamesWithRating.length > 0) {
+                const totalRating = gamesWithRating.reduce((sum, game) => sum + (game.rating || 0), 0);
+                analyticsData.avgRating = (totalRating / gamesWithRating.length).toFixed(1);
+            } else {
+                analyticsData.avgRating = 'N/A';
+            }
+        }
+        
+        // Display stats in cards
+        function displayAnalyticsStats() {
+            document.getElementById('totalGamesAnalytics').textContent = analyticsData.totalGames;
+            document.getElementById('totalPlaysAnalytics').textContent = formatNumber(analyticsData.totalPlays);
+            document.getElementById('totalLikesAnalytics').textContent = formatNumber(analyticsData.totalLikes);
+            document.getElementById('avgRatingAnalytics').textContent = analyticsData.avgRating;
+            document.getElementById('totalCommentsAnalytics').textContent = formatNumber(analyticsData.totalComments);
+        }
+        
+        // Display analytics table
+        function displayAnalyticsTable() {
+            if (analyticsData.games.length === 0) {
+                document.getElementById('analyticsTableContainer').innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: var(--text-gray-400);">
+                        <h3 style="color: var(--text-gray-200); margin-bottom: 0.5rem;">No games uploaded yet</h3>
+                        <p>Upload your first game to start tracking analytics</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const tableHTML = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Game</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Plays</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Likes</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Rating</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Comments</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-gray-400); font-weight: 500;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${analyticsData.games.map(game => `
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 1rem 0.75rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <img src="${game.thumbnailUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"%3E%3Crect width="48" height="48" fill="%23333"%3E%3C/rect%3E%3Ctext x="24" y="28" text-anchor="middle" fill="%23666" font-size="20"%3E🎮%3C/text%3E%3C/svg%3E'}" 
+                                             alt="${game.name}" 
+                                             style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover;"
+                                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'48\\' height=\\'48\\' viewBox=\\'0 0 48 48\\'%3E%3Crect width=\\'48\\' height=\\'48\\' fill=\\'%23333\\'%3E%3C/rect%3E%3Ctext x=\\'24\\' y=\\'28\\' text-anchor=\\'middle\\' fill=\\'%23666\\' font-size=\\'20\\'%3E🎮%3C/text%3E%3C/svg%3E'">
+                                        <div>
+                                            <div style="font-weight: 500; color: var(--text-gray-200);">${game.name || game.title}</div>
+                                            <div style="font-size: 0.85rem; color: var(--text-gray-400);">${game.category || 'Uncategorized'}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td style="padding: 1rem 0.75rem; font-weight: 600;">${formatNumber(game.playCount || 0)}</td>
+                                <td style="padding: 1rem 0.75rem; font-weight: 600;">${formatNumber(game.likeCount || 0)}</td>
+                                <td style="padding: 1rem 0.75rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                        <span style="color: #fbbf24;">${generateStars(game.rating || 0)}</span>
+                                        <span style="color: var(--text-gray-400); font-size: 0.9rem;">(${game.ratingCount || 0})</span>
+                                    </div>
+                                </td>
+                                <td style="padding: 1rem 0.75rem; font-weight: 600;">${formatNumber(game.commentCount || 0)}</td>
+                                <td style="padding: 1rem 0.75rem;">
+                                    <span style="color: ${game.status === 'active' ? '#10b981' : '#6b7280'};">
+                                        ${game.status || 'active'}
+                                    </span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById('analyticsTableContainer').innerHTML = tableHTML;
+        }
+        
+        // Setup analytics charts
+        function setupAnalyticsCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { 
+                        display: false 
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.6)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.6)'
+                        }
+                    }
+                }
+            };
+            
+            // Plays trend chart
+            const playsCtx = document.getElementById('playsChartCanvas');
+            if (playsCtx) {
+                playsChart = new Chart(playsCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: getLast7Days(),
+                        datasets: [{
+                            label: 'Plays',
+                            data: generateMockTrendData(),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: chartOptions
+                });
+            }
+            
+            // Engagement chart
+            const engagementCtx = document.getElementById('engagementChartCanvas');
+            if (engagementCtx) {
+                engagementChart = new Chart(engagementCtx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Engagement Score',
+                            data: [],
+                            backgroundColor: '#764ba2'
+                        }]
+                    },
+                    options: chartOptions
+                });
+            }
+        }
+        
+        // Update charts with real data
+        function updateAnalyticsCharts() {
+            if (engagementChart && analyticsData.games.length > 0) {
+                // Show top 5 games by engagement
+                const topGames = [...analyticsData.games]
+                    .sort((a, b) => {
+                        const scoreA = (a.playCount || 0) + (a.likeCount || 0) * 10 + (a.commentCount || 0) * 5;
+                        const scoreB = (b.playCount || 0) + (b.likeCount || 0) * 10 + (b.commentCount || 0) * 5;
+                        return scoreB - scoreA;
+                    })
+                    .slice(0, 5);
+                
+                engagementChart.data.labels = topGames.map(g => g.name || g.title);
+                engagementChart.data.datasets[0].data = topGames.map(g => 
+                    (g.playCount || 0) + (g.likeCount || 0) * 10 + (g.commentCount || 0) * 5
+                );
+                engagementChart.update();
+            }
+        }
+        
+        // Utility function to format numbers
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+        
+        // Generate star rating display
+        function generateStars(rating) {
+            const fullStars = Math.floor(rating);
+            const halfStar = rating % 1 >= 0.5 ? 1 : 0;
+            const emptyStars = 5 - fullStars - halfStar;
+            
+            return '★'.repeat(fullStars) + (halfStar ? '☆' : '') + '☆'.repeat(emptyStars);
+        }
+        
+        // Get last 7 days for chart
+        function getLast7Days() {
+            const days = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                days.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+            }
+            return days;
+        }
+        
+        // Generate mock trend data (replace with real data later)
+        function generateMockTrendData() {
+            return [120, 145, 165, 180, 156, 190, 210];
+        }
+        
+        // Initialize analytics when tab is clicked
+        document.addEventListener('DOMContentLoaded', () => {
+            const analyticsTab = document.querySelector('[onclick="showSection(\'analytics\')"]');
+            if (analyticsTab) {
+                // Override the onclick to also init analytics
+                analyticsTab.onclick = function() {
+                    showSection('analytics');
+                    setTimeout(initAnalytics, 100); // Small delay to ensure section is visible
+                };
+            }
+        });
+    </script>
 </body>
 </html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Comments System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .comment {
+            background: #f9f9f9;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 3px solid #4CAF50;
+        }
+        .error {
+            color: red;
+            padding: 10px;
+            background: #fee;
+            border-radius: 4px;
+        }
+        .success {
+            color: green;
+            padding: 10px;
+            background: #efe;
+            border-radius: 4px;
+        }
+        .game-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Comments System Test</h1>
+
+    <div class="container">
+        <h2>Test Games</h2>
+        <div class="game-info">
+            <strong>Horror Pong</strong><br>
+            Game ID: horror-pong-1757075261334<br>
+            <button onclick="selectGame('horror-pong-1757075261334', 'Horror Pong')">Test Comments on This Game</button>
+        </div>
+        <div class="game-info">
+            <strong>Cannon Shot</strong><br>
+            Game ID: cannon-shot-1757105583409<br>
+            <button onclick="selectGame('cannon-shot-1757105583409', 'Cannon Shot')">Test Comments on This Game</button>
+        </div>
+    </div>
+
+    <div class="container" id="testArea" style="display:none;">
+        <h2>Testing: <span id="currentGame"></span></h2>
+        
+        <h3>Step 1: Get Comments</h3>
+        <button onclick="getComments()">Get Comments for This Game</button>
+        <div id="getResult"></div>
+
+        <h3>Step 2: Post a Comment</h3>
+        <input type="text" id="username" placeholder="Your Name" value="TestUser">
+        <textarea id="commentText" placeholder="Your Comment" rows="3">This is a test comment from the developer portal!</textarea>
+        <button onclick="postComment()">Post Comment</button>
+        <div id="postResult"></div>
+
+        <h3>Comments List</h3>
+        <div id="commentsList"></div>
+    </div>
+
+    <div class="container">
+        <h3>Response Log</h3>
+        <pre id="responseLog" style="background:#f5f5f5; padding:10px; overflow-x:auto;"></pre>
+    </div>
+
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        let currentGameId = '';
+
+        function log(message) {
+            const logEl = document.getElementById('responseLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.textContent = `[${timestamp}] ${message}\n` + logEl.textContent;
+        }
+
+        function selectGame(gameId, gameName) {
+            currentGameId = gameId;
+            document.getElementById('currentGame').textContent = gameName;
+            document.getElementById('testArea').style.display = 'block';
+            log(`Selected game: ${gameName} (${gameId})`);
+            // Clear previous results
+            document.getElementById('getResult').innerHTML = '';
+            document.getElementById('postResult').innerHTML = '';
+            document.getElementById('commentsList').innerHTML = '';
+        }
+
+        async function getComments() {
+            if (!currentGameId) {
+                alert('Please select a game first');
+                return;
+            }
+
+            const resultEl = document.getElementById('getResult');
+            const listEl = document.getElementById('commentsList');
+            
+            try {
+                log(`Fetching comments for ${currentGameId}...`);
+                
+                const response = await fetch(`${API_BASE}/games/${currentGameId}/comments`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                log(`Response status: ${response.status}`);
+                log(`Response data: ${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok) {
+                    resultEl.innerHTML = `<div class="success">✓ Successfully fetched ${data.comments ? data.comments.length : 0} comments</div>`;
+                    
+                    // Display comments
+                    listEl.innerHTML = '';
+                    if (data.comments && data.comments.length > 0) {
+                        data.comments.forEach(comment => {
+                            listEl.innerHTML += `
+                                <div class="comment">
+                                    <strong>${comment.username || comment.userId || 'Anonymous'}</strong> 
+                                    <small>(${new Date(comment.timestamp || comment.createdAt).toLocaleString()})</small><br>
+                                    ${comment.commentText || comment.text || comment.comment}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        listEl.innerHTML = '<p>No comments yet. Be the first to comment!</p>';
+                    }
+                } else {
+                    resultEl.innerHTML = `<div class="error">✗ Error: ${data.message || 'Failed to fetch comments'}</div>`;
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                resultEl.innerHTML = `<div class="error">✗ Network error: ${error.message}</div>`;
+            }
+        }
+
+        async function postComment() {
+            if (!currentGameId) {
+                alert('Please select a game first');
+                return;
+            }
+
+            const username = document.getElementById('username').value;
+            const text = document.getElementById('commentText').value;
+            const resultEl = document.getElementById('postResult');
+
+            if (!username || !text) {
+                resultEl.innerHTML = '<div class="error">✗ Please enter both name and comment</div>';
+                return;
+            }
+
+            try {
+                log(`Posting comment to ${currentGameId}...`);
+                
+                const payload = {
+                    gameId: currentGameId,
+                    comment: text,  // Changed from 'text' to 'comment'
+                    username: username,
+                    userId: 'dev-test-' + Date.now() // Simulate a user ID
+                };
+
+                log(`Request payload: ${JSON.stringify(payload, null, 2)}`);
+
+                const response = await fetch(`${API_BASE}/games/${currentGameId}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer guest-' + payload.userId  // Add auth header
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                log(`Response status: ${response.status}`);
+                log(`Response data: ${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok) {
+                    resultEl.innerHTML = '<div class="success">✓ Comment posted successfully!</div>';
+                    // Clear the form
+                    document.getElementById('commentText').value = '';
+                    // Refresh comments
+                    setTimeout(() => getComments(), 500);
+                } else {
+                    resultEl.innerHTML = `<div class="error">✗ Error: ${data.message || 'Failed to post comment'}</div>`;
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                resultEl.innerHTML = `<div class="error">✗ Network error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
