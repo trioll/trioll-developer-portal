@@ -4957,6 +4957,7 @@
                 console.log('Analytics: Total games found:', allGames.length);
                 console.log('Analytics: Developer ID:', developerId);
                 console.log('Analytics: Sample game:', allGames[0]);
+                console.log('Analytics: All games data:', allGames);
                 
                 // Filter games by developer
                 analyticsData.games = allGames.filter(game => {
@@ -4975,6 +4976,25 @@
                 // If no games found but API worked, show appropriate message
                 if (allGames.length > 0 && analyticsData.games.length === 0) {
                     console.log('No games found for this developer, but other games exist');
+                }
+                
+                // Log the metrics fields for the first game to debug
+                if (analyticsData.games.length > 0) {
+                    const firstGame = analyticsData.games[0];
+                    console.log('Analytics: First game metrics:', {
+                        name: firstGame.name,
+                        playCount: firstGame.playCount,
+                        likeCount: firstGame.likeCount,
+                        commentCount: firstGame.commentCount,
+                        bookmarkCount: firstGame.bookmarkCount,
+                        rating: firstGame.rating,
+                        ratingCount: firstGame.ratingCount,
+                        // Check alternative field names
+                        plays: firstGame.plays,
+                        likes: firstGame.likes,
+                        comments: firstGame.comments,
+                        bookmarks: firstGame.bookmarks
+                    });
                 }
                 
                 // Calculate aggregate stats
