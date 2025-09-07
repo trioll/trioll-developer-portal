@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Update Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f0f0f;
+            color: #0f0;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #0f0;
+            background: #000;
+        }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0a0;
+        }
+        .log {
+            white-space: pre-wrap;
+            background: #111;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background: #111;
+            color: #0f0;
+            border: 1px solid #0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Game Update Test</h1>
+
+    <div class="section">
+        <h2>1. Get Token</h2>
+        <p>Open the main portal, login, then run this in console:</p>
+        <code>localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken')</code>
+        <input type="text" id="token" placeholder="Paste token here">
+        <button onclick="validateToken()">Validate Token</button>
+        <div id="tokenLog" class="log"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Load Your Games</h2>
+        <button onclick="loadGames()">Load Games</button>
+        <div id="gamesLog" class="log"></div>
+        <select id="gameSelect" onchange="selectGame()">
+            <option value="">Select a game...</option>
+        </select>
+    </div>
+
+    <div class="section">
+        <h2>3. Test Update</h2>
+        <input type="text" id="gameName" placeholder="New name">
+        <input type="text" id="gameDesc" placeholder="New description">
+        <button onclick="testUpdate()">Test PUT Request</button>
+        <div id="updateLog" class="log"></div>
+    </div>
+
+    <script>
+        const API = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        let selectedGameId = null;
+
+        function log(elementId, message) {
+            document.getElementById(elementId).textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+        }
+
+        function validateToken() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                log('tokenLog', 'No token provided');
+                return;
+            }
+            
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    log('tokenLog', 'Invalid token format');
+                    return;
+                }
+                
+                const payload = JSON.parse(atob(parts[1]));
+                const exp = new Date(payload.exp * 1000);
+                const now = new Date();
+                
+                log('tokenLog', `Token valid: ${exp > now}\nExpires: ${exp}\nEmail: ${payload.email}\nSub: ${payload.sub}`);
+            } catch (e) {
+                log('tokenLog', `Error parsing token: ${e.message}`);
+            }
+        }
+
+        async function loadGames() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                log('gamesLog', 'Please provide token first');
+                return;
+            }
+            
+            log('gamesLog', 'Loading games...');
+            
+            try {
+                const response = await fetch(`${API}/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.games) {
+                    const select = document.getElementById('gameSelect');
+                    select.innerHTML = '<option value="">Select a game...</option>';
+                    
+                    // Get developer ID from token
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const devId = payload['custom:developer_id'];
+                    
+                    const myGames = data.games.filter(g => g.developerId === devId);
+                    
+                    myGames.forEach(game => {
+                        const option = document.createElement('option');
+                        option.value = game.id || game.gameId;
+                        option.textContent = `${game.name} (${game.id || game.gameId})`;
+                        select.appendChild(option);
+                    });
+                    
+                    log('gamesLog', `Loaded ${myGames.length} of your games (out of ${data.games.length} total)`);
+                } else {
+                    log('gamesLog', `Error: ${JSON.stringify(data)}`);
+                }
+            } catch (e) {
+                log('gamesLog', `Failed: ${e.message}`);
+            }
+        }
+
+        function selectGame() {
+            selectedGameId = document.getElementById('gameSelect').value;
+            log('updateLog', selectedGameId ? `Selected game: ${selectedGameId}` : 'No game selected');
+        }
+
+        async function testUpdate() {
+            const token = document.getElementById('token').value;
+            if (!token || !selectedGameId) {
+                log('updateLog', 'Please select a game first');
+                return;
+            }
+            
+            const updates = {
+                name: document.getElementById('gameName').value || 'Test Update',
+                description: document.getElementById('gameDesc').value || 'Test Description'
+            };
+            
+            log('updateLog', `Sending PUT to /games/${selectedGameId}\nPayload: ${JSON.stringify(updates)}`);
+            
+            try {
+                const response = await fetch(`${API}/games/${selectedGameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify(updates)
+                });
+                
+                const responseText = await response.text();
+                
+                log('updateLog', `Response ${response.status}:\n${responseText}\n\nHeaders:\n${[...response.headers.entries()].map(([k,v]) => `${k}: ${v}`).join('\n')}`);
+            } catch (e) {
+                log('updateLog', `Request failed: ${e.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

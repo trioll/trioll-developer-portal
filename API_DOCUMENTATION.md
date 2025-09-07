@@ -232,8 +232,71 @@ Game data is stored in DynamoDB:
 - **Primary Key**: `id` (game ID)
 - **Region**: us-east-1
 
-## Recent Updates (September 4, 2025)
+### 5. Update Game (NEW - September 6, 2025)
 
+**Endpoint**: `PUT /games/{gameId}`
+
+Updates game metadata for games owned by the authenticated developer.
+
+#### Authentication Required
+- **Bearer Token**: Required in Authorization header
+- **Client Header**: `X-App-Client: developer-portal`
+
+#### Request Headers
+```
+Content-Type: application/json
+Authorization: Bearer {developerToken}
+X-App-Client: developer-portal
+```
+
+#### Request Body
+```json
+{
+  "name": "string",          // Game title
+  "description": "string",   // Game description
+  "category": "string",      // Game category
+  "status": "string",        // "active" or "inactive"
+  "thumbnailUrl": "string"   // Optional: New thumbnail URL
+}
+```
+
+#### Response
+
+**Success (200)**:
+```json
+{
+  "success": true,
+  "game": {
+    "gameId": "horror-pong-1757075261334",
+    "name": "Updated Game Name",
+    "description": "Updated description",
+    "category": "Action",
+    "status": "active",
+    "developerId": "dev_c84a7e",
+    "thumbnailUrl": "https://...",
+    "gameUrl": "https://...",
+    "updatedAt": "2025-09-06T16:30:00.000Z"
+  }
+}
+```
+
+**Error (403)**:
+```json
+{
+  "success": false,
+  "message": "You can only update games you uploaded"
+}
+```
+
+## Recent Updates
+
+### September 6, 2025
+1. Added `PUT /games/{gameId}` endpoint for game updates
+2. Added developer ownership verification
+3. Added game visibility toggle (active/inactive status)
+4. Frontend game management UI implemented
+
+### September 4, 2025
 1. Added `POST /games` endpoint for game creation
 2. Added support for new fields:
    - `gameStage` - Track pre-release vs released games

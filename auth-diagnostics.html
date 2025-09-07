@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Diagnostics - Trioll Developer Portal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .diagnostic-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-ok { color: green; font-weight: bold; }
+        .status-error { color: red; font-weight: bold; }
+        .status-warning { color: orange; font-weight: bold; }
+        .log-entry {
+            font-family: monospace;
+            font-size: 12px;
+            margin: 2px 0;
+            padding: 2px 5px;
+            background: #f0f0f0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .token-display {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid #ddd;
+        }
+        .test-result.success {
+            border-left-color: #28a745;
+            background: #e8f5e8;
+        }
+        .test-result.error {
+            border-left-color: #dc3545;
+            background: #f8e8e8;
+        }
+    </style>
+</head>
+<body>
+    <h1>Authentication Diagnostics</h1>
+    
+    <div class="diagnostic-section">
+        <h2>1. Token Storage Status</h2>
+        <div id="tokenStatus"></div>
+        <button onclick="checkTokens()">Check Tokens</button>
+        <button onclick="refreshAuthService()">Refresh Auth Service</button>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>2. Auth Service Status</h2>
+        <div id="authServiceStatus"></div>
+        <button onclick="testAuthService()">Test Auth Service</button>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>3. API Request Tests</h2>
+        <div id="apiTests"></div>
+        <button onclick="runAPITests()">Run API Tests</button>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>4. Manual API Test</h2>
+        <input type="text" id="testEndpoint" placeholder="/developers/profile" style="width: 300px; padding: 5px;">
+        <select id="testMethod">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+        </select>
+        <button onclick="manualAPITest()">Test Endpoint</button>
+        <div id="manualTestResult"></div>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>5. Fix Actions</h2>
+        <button onclick="clearAllTokens()">Clear All Tokens</button>
+        <button onclick="copyTokenFromSession()">Copy Token Session→Local</button>
+        <button onclick="testDirectLogin()">Test Direct Login</button>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>Logs</h2>
+        <div id="logs" style="max-height: 400px; overflow-y: auto;"></div>
+    </div>
+
+    <script>
+        const API_ENDPOINT = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const timestamp = new Date().toLocaleTimeString();
+            entry.innerHTML = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            logsDiv.insertBefore(entry, logsDiv.firstChild);
+        }
+
+        function checkTokens() {
+            const statusDiv = document.getElementById('tokenStatus');
+            statusDiv.innerHTML = '';
+            
+            const locations = [
+                { name: 'localStorage (developerToken)', value: localStorage.getItem('developerToken') },
+                { name: 'sessionStorage (developerToken)', value: sessionStorage.getItem('developerToken') },
+                { name: 'localStorage (refreshToken)', value: localStorage.getItem('developerRefreshToken') },
+                { name: 'sessionStorage (refreshToken)', value: sessionStorage.getItem('developerRefreshToken') },
+                { name: 'localStorage (developerInfo)', value: localStorage.getItem('developerInfo') }
+            ];
+
+            locations.forEach(loc => {
+                const div = document.createElement('div');
+                div.className = 'test-result';
+                
+                if (loc.value) {
+                    div.classList.add('success');
+                    const preview = loc.value.length > 50 ? loc.value.substring(0, 50) + '...' : loc.value;
+                    div.innerHTML = `
+                        <strong>${loc.name}:</strong> <span class="status-ok">FOUND</span>
+                        <div class="token-display">${preview}</div>
+                    `;
+                    
+                    // Try to decode JWT token
+                    if (loc.name.includes('Token') && !loc.name.includes('refresh')) {
+                        try {
+                            const payload = JSON.parse(atob(loc.value.split('.')[1]));
+                            div.innerHTML += `<div>Email: ${payload.email || 'N/A'}</div>`;
+                            div.innerHTML += `<div>Exp: ${new Date(payload.exp * 1000).toLocaleString()}</div>`;
+                        } catch (e) {
+                            div.innerHTML += `<div>Unable to decode token</div>`;
+                        }
+                    }
+                } else {
+                    div.classList.add('error');
+                    div.innerHTML = `<strong>${loc.name}:</strong> <span class="status-error">NOT FOUND</span>`;
+                }
+                
+                statusDiv.appendChild(div);
+            });
+            
+            log('Token check completed');
+        }
+
+        function refreshAuthService() {
+            if (typeof window.authService !== 'undefined' && window.authService.refreshFromStorage) {
+                const hasToken = window.authService.refreshFromStorage();
+                log(`Auth service refreshed. Has token: ${hasToken}`);
+                
+                const statusDiv = document.getElementById('authServiceStatus');
+                statusDiv.innerHTML = `
+                    <div class="test-result ${hasToken ? 'success' : 'error'}">
+                        <strong>Token in auth service:</strong> ${hasToken ? 'YES' : 'NO'}
+                        ${hasToken ? `<div class="token-display">${window.authService.token.substring(0, 50)}...</div>` : ''}
+                    </div>
+                `;
+            } else {
+                log('Auth service not found or does not support refresh', 'error');
+            }
+        }
+
+        function testAuthService() {
+            const statusDiv = document.getElementById('authServiceStatus');
+            statusDiv.innerHTML = '';
+            
+            if (typeof window.authService === 'undefined') {
+                statusDiv.innerHTML = '<div class="test-result error"><strong>Auth Service:</strong> NOT LOADED</div>';
+                log('Auth service not found in window object', 'error');
+                return;
+            }
+            
+            const tests = [
+                { name: 'Auth Service Exists', value: !!window.authService },
+                { name: 'Has Token', value: !!window.authService.token },
+                { name: 'Has Refresh Token', value: !!window.authService.refreshToken },
+                { name: 'Has Developer Info', value: !!window.authService.developerInfo },
+                { name: 'Developer ID', value: window.authService.developerInfo?.developerId },
+                { name: 'isAuthenticated()', value: window.authService.isAuthenticated() }
+            ];
+            
+            tests.forEach(test => {
+                const div = document.createElement('div');
+                div.className = 'test-result ' + (test.value ? 'success' : 'error');
+                div.innerHTML = `<strong>${test.name}:</strong> ${test.value || 'NO/FALSE'}`;
+                statusDiv.appendChild(div);
+            });
+            
+            log('Auth service test completed');
+        }
+
+        async function runAPITests() {
+            const testsDiv = document.getElementById('apiTests');
+            testsDiv.innerHTML = '<p>Running API tests...</p>';
+            
+            // Get token from various sources
+            const token = localStorage.getItem('developerToken') || 
+                         sessionStorage.getItem('developerToken') ||
+                         (window.authService && window.authService.token);
+            
+            const endpoints = [
+                { path: '/developers/profile', method: 'GET', requiresAuth: true },
+                { path: '/games', method: 'GET', requiresAuth: false },
+                { path: '/games/test-123', method: 'GET', requiresAuth: false }
+            ];
+            
+            testsDiv.innerHTML = '';
+            
+            for (const endpoint of endpoints) {
+                const div = document.createElement('div');
+                div.className = 'test-result';
+                
+                try {
+                    const headers = {
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    };
+                    
+                    if (endpoint.requiresAuth && token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                        log(`Testing ${endpoint.path} with token`, 'info');
+                    } else if (endpoint.requiresAuth) {
+                        log(`Testing ${endpoint.path} without token (none found)`, 'warning');
+                    }
+                    
+                    const response = await fetch(API_ENDPOINT + endpoint.path, {
+                        method: endpoint.method,
+                        headers: headers
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        div.classList.add('success');
+                        div.innerHTML = `
+                            <strong>${endpoint.path}:</strong> <span class="status-ok">SUCCESS (${response.status})</span>
+                            <div class="token-display">${JSON.stringify(data).substring(0, 100)}...</div>
+                        `;
+                    } else {
+                        div.classList.add('error');
+                        div.innerHTML = `
+                            <strong>${endpoint.path}:</strong> <span class="status-error">FAILED (${response.status})</span>
+                            <div class="token-display">${JSON.stringify(data)}</div>
+                        `;
+                    }
+                } catch (error) {
+                    div.classList.add('error');
+                    div.innerHTML = `
+                        <strong>${endpoint.path}:</strong> <span class="status-error">NETWORK ERROR</span>
+                        <div>${error.message}</div>
+                    `;
+                }
+                
+                testsDiv.appendChild(div);
+            }
+            
+            log('API tests completed');
+        }
+
+        async function manualAPITest() {
+            const endpoint = document.getElementById('testEndpoint').value;
+            const method = document.getElementById('testMethod').value;
+            const resultDiv = document.getElementById('manualTestResult');
+            
+            if (!endpoint) {
+                resultDiv.innerHTML = '<div class="test-result error">Please enter an endpoint</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="test-result">Testing...</div>';
+            
+            const token = localStorage.getItem('developerToken') || 
+                         sessionStorage.getItem('developerToken') ||
+                         (window.authService && window.authService.token);
+            
+            try {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-App-Client': 'developer-portal'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                    log(`Manual test with token: ${token.substring(0, 20)}...`, 'info');
+                } else {
+                    log('Manual test without token', 'warning');
+                }
+                
+                const response = await fetch(API_ENDPOINT + endpoint, {
+                    method: method,
+                    headers: headers
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="test-result ${response.ok ? 'success' : 'error'}">
+                        <strong>Status:</strong> ${response.status}
+                        <div class="token-display">${JSON.stringify(data, null, 2)}</div>
+                    </div>
+                `;
+                
+                log(`Manual test ${endpoint}: ${response.status}`);
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        <strong>Network Error:</strong> ${error.message}
+                    </div>
+                `;
+                log(`Manual test error: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAllTokens() {
+            localStorage.removeItem('developerToken');
+            localStorage.removeItem('developerRefreshToken');
+            localStorage.removeItem('developerInfo');
+            sessionStorage.removeItem('developerToken');
+            sessionStorage.removeItem('developerRefreshToken');
+            
+            log('All tokens cleared');
+            checkTokens();
+        }
+
+        function copyTokenFromSession() {
+            const sessionToken = sessionStorage.getItem('developerToken');
+            const sessionRefresh = sessionStorage.getItem('developerRefreshToken');
+            
+            if (sessionToken) {
+                localStorage.setItem('developerToken', sessionToken);
+                log('Copied ID token from session to local storage');
+            }
+            if (sessionRefresh) {
+                localStorage.setItem('developerRefreshToken', sessionRefresh);
+                log('Copied refresh token from session to local storage');
+            }
+            
+            if (!sessionToken && !sessionRefresh) {
+                log('No tokens found in session storage', 'error');
+            }
+            
+            checkTokens();
+        }
+
+        async function testDirectLogin() {
+            const email = prompt('Email:', 'freddiecaplin@hotmail.com');
+            const password = prompt('Password:');
+            
+            if (!email || !password) {
+                log('Login cancelled', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_ENDPOINT + '/developers/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('Login successful!', 'info');
+                    
+                    // Store tokens
+                    if (data.tokens) {
+                        sessionStorage.setItem('developerToken', data.tokens.idToken);
+                        sessionStorage.setItem('developerRefreshToken', data.tokens.refreshToken);
+                        log('Tokens stored in sessionStorage');
+                        
+                        if (data.developer) {
+                            localStorage.setItem('developerInfo', JSON.stringify(data.developer));
+                            log('Developer info stored');
+                        }
+                        
+                        checkTokens();
+                    }
+                } else {
+                    log(`Login failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Login error: ${error.message}`, 'error');
+            }
+        }
+
+        // Load auth service if not already loaded
+        function loadAuthService() {
+            if (typeof window.authService === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'auth-service.js';
+                script.onload = () => {
+                    log('Auth service loaded');
+                    window.authService = new AuthService();
+                    testAuthService();
+                };
+                script.onerror = () => {
+                    log('Failed to load auth service', 'error');
+                };
+                document.body.appendChild(script);
+            } else {
+                log('Auth service already loaded');
+                testAuthService();
+            }
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            log('Auth diagnostics loaded');
+            checkTokens();
+            loadAuthService();
+        };
+    </script>
+</body>
+</html>

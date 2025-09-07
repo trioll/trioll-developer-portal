@@ -3813,29 +3813,41 @@
                 return;
             }
             
+            // Get user email from token for additional verification
+            let userEmail = null;
+            try {
+                const token = validateAndGetToken();
+                if (token) {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1]));
+                        userEmail = payload.email || payload['cognito:username'];
+                    }
+                }
+            } catch (e) {
+                console.error('Error getting email from token:', e);
+            }
+            
             // Verify developer owns this game
-            const userEmail = 'freddiecaplin@hotmail.com'; // Your email
+            // Check multiple possible matches since games might use different identifier formats
             const isDeveloperMatch = 
-                game.developerId === developerId ||
-                game.developer === developerId ||
-                game.developer === userEmail ||
-                game.developerId === 'dev_c84a7e' ||
-                game.developerId === 'dev_freddi' ||
-                game.developer === 'freddiecaplin@hotmail.com' ||
-                game.developer === 'FreddieTrioll'; // Legacy uploads might use company name
+                game.developerId === developerId ||  // Current developer ID format
+                game.developer === developerId ||     // Legacy field might contain developer ID
+                game.developer === userEmail ||       // Legacy games might use email
+                game.developerId === userEmail;       // Some games might have email in developerId
+            
+            console.log('Ownership check:', {
+                gameDeveloperId: game.developerId,
+                gameDeveloper: game.developer,
+                userDeveloperId: developerId,
+                userEmail: userEmail,
+                isMatch: isDeveloperMatch
+            });
             
             if (!isDeveloperMatch) {
-                console.error('Game ownership mismatch:', {
-                    gameDeveloperId: game.developerId,
-                    gameDeveloper: game.developer,
-                    userDeveloperId: developerId,
-                    userEmail: userEmail
-                });
-                // For now, just log the warning but allow editing since you're the only developer
-                console.warn('Ownership mismatch detected, but allowing edit for debugging');
-                // Comment out the return to allow editing
-                // alert('You can only edit games you uploaded');
-                // return;
+                alert('You can only edit games you uploaded');
+                console.error('Game ownership verification failed');
+                return;
             }
             
             // Populate the edit form

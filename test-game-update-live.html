@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Game Update - Live API</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f0f0f;
+            color: #fff;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { 
+            opacity: 0.5; 
+            cursor: not-allowed;
+        }
+        .log {
+            background: #1a1a1a;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #2a2a2a;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        .warning { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <h1>Test Game Update - Live API</h1>
+    <p>This will test updating one of your games using the live API.</p>
+    
+    <button onclick="testUpdate()" id="testBtn">Test Update on First Game</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        const API = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${time}] ${message}`;
+            logEl.appendChild(div);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function testUpdate() {
+            const btn = document.getElementById('testBtn');
+            btn.disabled = true;
+            
+            try {
+                log('Starting game update test...', 'info');
+                
+                // Step 1: Get token
+                const token = sessionStorage.getItem('developerToken') || 
+                             localStorage.getItem('developerToken');
+                
+                if (!token) {
+                    log('No token found. Please login to the developer portal first.', 'error');
+                    return;
+                }
+                
+                log('Token found ✓', 'success');
+                
+                // Decode token to get developer info
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    log(`Logged in as: ${payload.email}`, 'info');
+                    log(`Developer ID: ${payload['custom:developer_id'] || 'Unknown'}`, 'info');
+                } catch (e) {
+                    log('Could not decode token', 'warning');
+                }
+                
+                // Step 2: Get games
+                log('\nFetching your games...', 'info');
+                
+                const gamesResponse = await fetch(`${API}/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                if (!gamesResponse.ok) {
+                    throw new Error(`Failed to fetch games: ${gamesResponse.status}`);
+                }
+                
+                const gamesData = await gamesResponse.json();
+                log(`Total games found: ${gamesData.games.length}`, 'info');
+                
+                // Find games by this developer
+                const devId = JSON.parse(atob(token.split('.')[1]))['custom:developer_id'];
+                const myGames = gamesData.games.filter(g => 
+                    g.developerId === devId || 
+                    g.developer === devId ||
+                    g.developer === 'freddiecaplin@hotmail.com' // fallback
+                );
+                
+                log(`Your games: ${myGames.length}`, 'info');
+                
+                if (myGames.length === 0) {
+                    log('No games found for your developer account', 'error');
+                    return;
+                }
+                
+                // Use first game
+                const game = myGames[0];
+                const gameId = game.id || game.gameId;
+                
+                log(`\nSelected game: "${game.name || game.title}"`, 'success');
+                log(`Game ID: ${gameId}`, 'info');
+                log(`Current status: ${game.status || 'Not set'}`, 'info');
+                
+                // Step 3: Update the game
+                const timestamp = new Date().toISOString();
+                const updateData = {
+                    name: game.name || game.title,
+                    description: `Updated via API test at ${timestamp}`,
+                    category: game.category || game.genre || 'Action',
+                    status: 'active'
+                };
+                
+                log('\nSending update...', 'info');
+                log(`PUT ${API}/games/${gameId}`, 'info');
+                log('Update data:', 'info');
+                log(JSON.stringify(updateData, null, 2), 'info');
+                
+                const updateResponse = await fetch(`${API}/games/${gameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                const responseText = await updateResponse.text();
+                
+                if (!updateResponse.ok) {
+                    log(`\nUpdate failed with status: ${updateResponse.status}`, 'error');
+                    log('Response:', 'error');
+                    log(responseText, 'error');
+                    
+                    // Parse error if possible
+                    try {
+                        const error = JSON.parse(responseText);
+                        if (error.message) {
+                            log(`Error message: ${error.message}`, 'error');
+                        }
+                    } catch (e) {}
+                    
+                    return;
+                }
+                
+                log('\n✅ Update successful!', 'success');
+                log('Response:', 'success');
+                log(responseText, 'info');
+                
+                // Step 4: Verify the update
+                log('\nVerifying update...', 'info');
+                
+                const verifyResponse = await fetch(`${API}/games/${gameId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                if (verifyResponse.ok) {
+                    const updatedGame = await verifyResponse.json();
+                    log('Updated game data:', 'success');
+                    log(JSON.stringify({
+                        name: updatedGame.name,
+                        description: updatedGame.description,
+                        status: updatedGame.status,
+                        lastModified: updatedGame.lastModified
+                    }, null, 2), 'info');
+                    
+                    if (updatedGame.description === updateData.description) {
+                        log('\n✅ Update verified successfully!', 'success');
+                    } else {
+                        log('\n⚠️ Update may not have persisted', 'warning');
+                    }
+                }
+                
+            } catch (error) {
+                log(`\nError: ${error.message}`, 'error');
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        
+        // Auto-check on load
+        window.addEventListener('DOMContentLoaded', () => {
+            const hasToken = sessionStorage.getItem('developerToken') || 
+                           localStorage.getItem('developerToken');
+            
+            if (hasToken) {
+                log('Developer token detected ✓', 'success');
+                log('Click the button above to test game updates', 'info');
+            } else {
+                log('No developer token found', 'error');
+                log('Please login to the developer portal first', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

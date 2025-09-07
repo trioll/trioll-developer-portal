@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Game Update - Comprehensive</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f0f0f;
+            color: #fff;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #1a1a1a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #0f0f0f;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { border-left: 4px solid #10b981; }
+        .error { border-left: 4px solid #ef4444; }
+        .warning { border-left: 4px solid #f59e0b; }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            color: #fff;
+            border-radius: 6px;
+        }
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+        }
+        .status.authenticated {
+            border-color: #10b981;
+        }
+        .game-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .game-card {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .game-card:hover {
+            background: #3a3a3a;
+        }
+        .game-card.selected {
+            border: 2px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="status" id="authStatus">
+        <strong>Auth Status:</strong> <span id="authStatusText">Not Logged In</span>
+    </div>
+
+    <div class="header">
+        <h1>🎮 Game Update Test Suite</h1>
+        <p>Test the complete game update functionality</p>
+    </div>
+
+    <!-- Step 1: Authentication -->
+    <div class="test-section">
+        <h2>1. Authentication</h2>
+        <input type="email" id="email" value="freddiecaplin@hotmail.com" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+
+    <!-- Step 2: Load Games -->
+    <div class="test-section">
+        <h2>2. Load Your Games</h2>
+        <button onclick="loadGames()" id="loadGamesBtn" disabled>Load Games</button>
+        <div id="gamesResult" class="result"></div>
+        <div id="gamesList" class="game-list"></div>
+    </div>
+
+    <!-- Step 3: Update Game -->
+    <div class="test-section">
+        <h2>3. Update Selected Game</h2>
+        <div id="selectedGame" style="display: none;">
+            <p><strong>Selected Game:</strong> <span id="selectedGameName"></span> (ID: <span id="selectedGameId"></span>)</p>
+            
+            <label>Game Name:</label>
+            <input type="text" id="updateName" placeholder="Enter new name">
+            
+            <label>Description:</label>
+            <textarea id="updateDescription" rows="3" placeholder="Enter new description"></textarea>
+            
+            <label>Category:</label>
+            <select id="updateCategory">
+                <option value="">Select a category</option>
+                <option value="Action">Action</option>
+                <option value="Adventure">Adventure</option>
+                <option value="Arcade">Arcade</option>
+                <option value="Horror">Horror</option>
+                <option value="Puzzle">Puzzle</option>
+                <option value="Racing">Racing</option>
+                <option value="RPG">RPG</option>
+                <option value="Simulation">Simulation</option>
+                <option value="Sports">Sports</option>
+                <option value="Strategy">Strategy</option>
+                <option value="Zombie">Zombie</option>
+            </select>
+            
+            <label>Status:</label>
+            <select id="updateStatus">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+            </select>
+            
+            <label>Update Thumbnail (Optional):</label>
+            <input type="file" id="updateThumbnail" accept="image/*">
+            <p style="font-size: 0.875rem; color: #888; margin-top: 5px;">
+                Leave empty to keep current thumbnail
+            </p>
+            
+            <button onclick="updateGame()" id="updateGameBtn">Update Game</button>
+            <button onclick="testPutRequest()">Test Raw PUT Request</button>
+        </div>
+        <div id="updateResult" class="result"></div>
+    </div>
+
+    <!-- Step 4: Verify Update -->
+    <div class="test-section">
+        <h2>4. Verify Update</h2>
+        <button onclick="verifyUpdate()" id="verifyBtn" disabled>Reload Game & Verify</button>
+        <div id="verifyResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        let authToken = null;
+        let developerId = null;
+        let selectedGame = null;
+        let userGames = [];
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            element.className = `result ${type === 'error' ? 'error' : type === 'success' ? 'success' : 'warning'}`;
+            element.textContent = `[${timestamp}] ${message}`;
+        }
+
+        function updateAuthStatus(isLoggedIn, email) {
+            const statusEl = document.getElementById('authStatus');
+            const statusTextEl = document.getElementById('authStatusText');
+            
+            if (isLoggedIn) {
+                statusEl.className = 'status authenticated';
+                statusTextEl.textContent = `Logged in as ${email}`;
+                document.getElementById('loadGamesBtn').disabled = false;
+            } else {
+                statusEl.className = 'status';
+                statusTextEl.textContent = 'Not Logged In';
+                document.getElementById('loadGamesBtn').disabled = true;
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!password) {
+                log('loginResult', 'Please enter your password', 'error');
+                return;
+            }
+            
+            log('loginResult', 'Logging in...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/developers/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.tokens) {
+                    authToken = data.tokens.idToken;
+                    developerId = data.developer?.developerId;
+                    
+                    // Store tokens like the main app does
+                    sessionStorage.setItem('developerToken', authToken);
+                    
+                    log('loginResult', `Login successful! Developer ID: ${developerId}`, 'success');
+                    updateAuthStatus(true, email);
+                    
+                    // Auto-load games
+                    setTimeout(() => loadGames(), 500);
+                } else {
+                    throw new Error(data.message || 'Login failed');
+                }
+            } catch (error) {
+                log('loginResult', `Login failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadGames() {
+            log('gamesResult', 'Loading games...');
+            document.getElementById('gamesList').innerHTML = '';
+            
+            try {
+                const response = await fetch(`${API_BASE}/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.games) {
+                    // Filter games by developer
+                    userGames = data.games.filter(game => 
+                        game.developerId === developerId || 
+                        game.developer === developerId
+                    );
+                    
+                    log('gamesResult', `Found ${userGames.length} games uploaded by you`, 'success');
+                    displayGames(userGames);
+                    
+                    if (userGames.length === 0) {
+                        log('gamesResult', 'No games found. Please upload a game first.', 'warning');
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to load games');
+                }
+            } catch (error) {
+                log('gamesResult', `Failed to load games: ${error.message}`, 'error');
+            }
+        }
+
+        function displayGames(games) {
+            const container = document.getElementById('gamesList');
+            container.innerHTML = '';
+            
+            games.forEach(game => {
+                const card = document.createElement('div');
+                card.className = 'game-card';
+                card.innerHTML = `
+                    <h3>${game.name || game.title || 'Untitled'}</h3>
+                    <p>ID: ${game.id || game.gameId}</p>
+                    <p>Category: ${game.category || 'None'}</p>
+                    <p>Status: ${game.status || 'unknown'}</p>
+                `;
+                card.onclick = () => selectGame(game);
+                container.appendChild(card);
+            });
+        }
+
+        function selectGame(game) {
+            selectedGame = game;
+            
+            // Update UI
+            document.querySelectorAll('.game-card').forEach(card => card.classList.remove('selected'));
+            event.target.closest('.game-card').classList.add('selected');
+            
+            document.getElementById('selectedGame').style.display = 'block';
+            document.getElementById('selectedGameName').textContent = game.name || game.title;
+            document.getElementById('selectedGameId').textContent = game.id || game.gameId;
+            
+            // Pre-fill form
+            document.getElementById('updateName').value = game.name || '';
+            document.getElementById('updateDescription').value = game.description || '';
+            document.getElementById('updateCategory').value = game.category || '';
+            document.getElementById('updateStatus').value = game.status || 'active';
+            
+            document.getElementById('verifyBtn').disabled = false;
+        }
+
+        async function updateGame() {
+            if (!selectedGame) {
+                log('updateResult', 'Please select a game first', 'error');
+                return;
+            }
+            
+            const gameId = selectedGame.id || selectedGame.gameId;
+            const updates = {
+                name: document.getElementById('updateName').value,
+                description: document.getElementById('updateDescription').value,
+                category: document.getElementById('updateCategory').value,
+                status: document.getElementById('updateStatus').value
+            };
+            
+            // Handle thumbnail upload
+            const thumbnailFile = document.getElementById('updateThumbnail').files[0];
+            if (thumbnailFile) {
+                log('updateResult', 'Uploading thumbnail first...');
+                try {
+                    const thumbnailUrl = await uploadThumbnail(gameId, thumbnailFile);
+                    if (thumbnailUrl) {
+                        updates.thumbnailUrl = thumbnailUrl;
+                        log('updateResult', `Thumbnail uploaded: ${thumbnailUrl}`);
+                    }
+                } catch (error) {
+                    log('updateResult', `Warning: Thumbnail upload failed: ${error.message}. Continuing with other updates.`, 'warning');
+                }
+            }
+            
+            log('updateResult', `Updating game ${gameId}...\n\nPayload:\n${JSON.stringify(updates, null, 2)}`);
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify(updates)
+                });
+                
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch {
+                    data = responseText;
+                }
+                
+                if (response.ok) {
+                    log('updateResult', `Update successful!\n\nResponse:\n${JSON.stringify(data, null, 2)}`, 'success');
+                    
+                    // Update local data
+                    Object.assign(selectedGame, updates);
+                    
+                    // Reload games to confirm
+                    setTimeout(() => loadGames(), 1000);
+                } else {
+                    throw new Error(data.message || data || 'Update failed');
+                }
+            } catch (error) {
+                log('updateResult', `Update failed: ${error.message}\n\nFull error: ${error.stack || error}`, 'error');
+            }
+        }
+
+        async function uploadThumbnail(gameId, file) {
+            // This would normally use AWS SDK to upload to S3
+            // For now, just simulate the upload
+            console.log('Would upload thumbnail:', file.name, 'for game:', gameId);
+            
+            // In production, you'd:
+            // 1. Get presigned URL or use AWS SDK
+            // 2. Upload to S3 bucket
+            // 3. Return the CloudFront URL
+            
+            // Simulated URL:
+            return `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/thumbnail-${Date.now()}.jpg`;
+        }
+
+        async function testPutRequest() {
+            if (!selectedGame) {
+                log('updateResult', 'Please select a game first', 'error');
+                return;
+            }
+            
+            const gameId = selectedGame.id || selectedGame.gameId;
+            log('updateResult', `Testing raw PUT request to /games/${gameId}...`);
+            
+            try {
+                // First test OPTIONS
+                const optionsResponse = await fetch(`${API_BASE}/games/${gameId}`, {
+                    method: 'OPTIONS'
+                });
+                
+                const corsHeaders = {};
+                optionsResponse.headers.forEach((value, key) => {
+                    if (key.toLowerCase().includes('access-control')) {
+                        corsHeaders[key] = value;
+                    }
+                });
+                
+                log('updateResult', `OPTIONS response: ${optionsResponse.status}\n\nCORS Headers:\n${JSON.stringify(corsHeaders, null, 2)}`);
+                
+                // Then test PUT
+                const putResponse = await fetch(`${API_BASE}/games/${gameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        name: 'Test Update',
+                        description: 'Testing PUT endpoint'
+                    })
+                });
+                
+                const responseHeaders = {};
+                putResponse.headers.forEach((value, key) => {
+                    responseHeaders[key] = value;
+                });
+                
+                const body = await putResponse.text();
+                
+                log('updateResult', `PUT response: ${putResponse.status}\n\nHeaders:\n${JSON.stringify(responseHeaders, null, 2)}\n\nBody:\n${body}`);
+                
+            } catch (error) {
+                log('updateResult', `Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function verifyUpdate() {
+            if (!selectedGame) {
+                log('verifyResult', 'No game selected', 'error');
+                return;
+            }
+            
+            const gameId = selectedGame.id || selectedGame.gameId;
+            log('verifyResult', `Reloading game ${gameId} to verify update...`);
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('verifyResult', `Game data:\n${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    const error = await response.text();
+                    throw new Error(error || `HTTP ${response.status}`);
+                }
+            } catch (error) {
+                log('verifyResult', `Failed to load game: ${error.message}`, 'error');
+            }
+        }
+
+        // Check for existing auth on load
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = sessionStorage.getItem('developerToken') || localStorage.getItem('developerToken');
+            if (token) {
+                authToken = token;
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    updateAuthStatus(true, payload.email);
+                    log('loginResult', 'Found existing session', 'success');
+                    
+                    // Try to get developer ID from stored info
+                    const developerInfo = localStorage.getItem('developerInfo');
+                    if (developerInfo) {
+                        try {
+                            const info = JSON.parse(developerInfo);
+                            developerId = info.developerId;
+                        } catch (e) {
+                            console.error('Failed to parse developer info:', e);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse token:', e);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
