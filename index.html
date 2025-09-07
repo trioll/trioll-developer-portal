@@ -3756,8 +3756,8 @@
         async function editGame(gameId) {
             console.log('=== EDIT GAME FUNCTION CALLED ===');
             console.log('Game ID:', gameId);
-            console.log('Function context:', this);
-            console.log('Caller:', arguments.callee.caller);
+            console.log('uploadedGames array:', uploadedGames);
+            console.log('Number of games:', uploadedGames.length);
             
             // Get developer ID to verify ownership
             const developerId = getDeveloperId();
@@ -3765,7 +3765,7 @@
             
             if (!developerId) {
                 console.error('No developer ID found');
-                showAlert('Please login to edit games', 'error');
+                alert('Please login to edit games');
                 return;
             }
             
@@ -3779,31 +3779,48 @@
             console.log('Game found in uploadedGames:', !!game);
             
             if (!game) {
-                // Try loading from API
+                // Always try loading from API since My Games doesn't populate uploadedGames
+                console.log('Game not in local array, fetching from API...');
                 try {
+                    const token = validateAndGetToken();
+                    const headers = {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    };
+                    
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                    
                     const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${gameId}`, {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Origin': window.location.origin
-                        }
+                        headers: headers
                     });
                     
                     if (response.ok) {
                         game = await response.json();
+                        console.log('Game loaded from API:', game);
+                    } else {
+                        console.error('API response not ok:', response.status);
                     }
                 } catch (error) {
-                    console.error('Error loading game:', error);
+                    console.error('Error loading game from API:', error);
                 }
             }
             
             if (!game) {
-                showAlert('Game not found', 'error');
+                alert('Game not found');
+                console.error('Could not find game with ID:', gameId);
                 return;
             }
             
             // Verify developer owns this game
-            if (game.developerId !== developerId && game.developer !== developerId) {
-                showAlert('You can only edit games you uploaded', 'error');
+            if (game.developerId !== developerId && game.developer !== developerId && game.developer !== getDeveloperId()) {
+                alert('You can only edit games you uploaded');
+                console.error('Game ownership mismatch:', {
+                    gameDeveloperId: game.developerId,
+                    gameDeveloper: game.developer,
+                    userDeveloperId: developerId
+                });
                 return;
             }
             
