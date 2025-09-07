@@ -92,12 +92,13 @@
             position: relative;
             transform-style: preserve-3d;
             transition: transform 0.3s ease;
+            z-index: 2;
         }
 
         .iphone-screen {
             width: 100%;
             height: 100%;
-            background: transparent;
+            background: #000;
             border-radius: 30px;
             overflow: hidden;
             position: relative;
@@ -108,15 +109,14 @@
             padding: 40px 20px;
         }
         
-        .phone-starfield-canvas {
+        .lock-starfield-canvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 0;
+            z-index: 1;
             opacity: 1;
-            border-radius: 30px;
             pointer-events: none;
         }
 
@@ -1356,10 +1356,10 @@
 
     <!-- Lock Screen -->
     <div id="lockScreen" class="lock-screen">
+        <!-- Lock Screen Starfield Background -->
+        <canvas class="lock-starfield-canvas" id="lockStarfieldCanvas"></canvas>
         <div class="iphone-frame" id="iphoneFrame">
             <div class="iphone-screen">
-                <!-- Phone Starfield Canvas -->
-                <canvas class="phone-starfield-canvas" id="phoneStarfieldCanvas"></canvas>
                 <div class="lock-content">
                     <div class="time" id="timeDisplay">12:26</div>
                     <div class="date" id="dateDisplay">Friday 4 July</div>
@@ -2679,24 +2679,22 @@
                 
                 this.init();
                 
-                // Initialize phone starfield after a delay to ensure DOM is ready
+                // Initialize lock screen starfield after a delay to ensure DOM is ready
                 setTimeout(() => {
-                    const phoneStarfieldCanvas = document.getElementById('phoneStarfieldCanvas');
-                    if (phoneStarfieldCanvas) {
-                        console.log('Initializing phone starfield...');
-                        console.log('Canvas dimensions:', phoneStarfieldCanvas.width, phoneStarfieldCanvas.height);
+                    const lockStarfieldCanvas = document.getElementById('lockStarfieldCanvas');
+                    if (lockStarfieldCanvas) {
+                        console.log('Initializing lock screen starfield...');
                         
-                        // Set canvas size explicitly
-                        const phoneScreen = phoneStarfieldCanvas.parentElement;
-                        phoneStarfieldCanvas.width = phoneScreen.offsetWidth;
-                        phoneStarfieldCanvas.height = phoneScreen.offsetHeight;
+                        // Set canvas to full window size
+                        lockStarfieldCanvas.width = window.innerWidth;
+                        lockStarfieldCanvas.height = window.innerHeight;
                         
-                        this.phoneStarfield = new StarfieldSystem(phoneStarfieldCanvas);
-                        this.phoneStarfield.speed = 0.3; // Slower speed for phone
-                        this.phoneStarfield.animate();
-                        console.log('Phone starfield initialized with size:', phoneStarfieldCanvas.width, 'x', phoneStarfieldCanvas.height);
+                        this.lockStarfield = new StarfieldSystem(lockStarfieldCanvas);
+                        this.lockStarfield.speed = 0.5; // Normal speed for background
+                        this.lockStarfield.animate();
+                        console.log('Lock screen starfield initialized');
                     } else {
-                        console.error('Phone starfield canvas not found!');
+                        console.error('Lock screen starfield canvas not found!');
                     }
                 }, 100);
             }
@@ -4043,6 +4041,26 @@
         // Enhanced Debug functions
         let debugConsole = [];
         
+        // Helper function to get developer ID
+        function getDeveloperId() {
+            try {
+                const token = sessionStorage.getItem('developerToken') || 
+                             localStorage.getItem('developerToken') || 
+                             (typeof auth !== 'undefined' && auth.token ? auth.token : null);
+                
+                if (!token) return 'dev_c84a7e'; // Default fallback
+                
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1]));
+                    return payload['custom:developer_id'] || payload.developerId || 'dev_c84a7e';
+                }
+            } catch (e) {
+                console.error('Error getting developer ID:', e);
+            }
+            return 'dev_c84a7e'; // Default fallback
+        }
+        
         function logToDebugConsole(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74b9ff';
@@ -4404,10 +4422,17 @@
                             logToDebugConsole('Token copied to clipboard!', 'success');
                         });
                     };
-                    document.getElementById('debugOutput').appendChild(tokenDiv);
+                    const debugOutput = document.getElementById('debugOutput');
+                    if (debugOutput) {
+                        debugOutput.appendChild(tokenDiv);
+                    } else {
+                        // If debug output not found, just log the issue
+                        console.log('Debug output element not found, token display skipped');
+                    }
                     logToDebugConsole('===== END TOKEN =====', 'info');
                 } catch (e) {
-                    logToDebugConsole('Could not decode token payload', 'error');
+                    logToDebugConsole('Error displaying token: ' + e.message, 'error');
+                    console.error('Token display error:', e);
                 }
             }
         }
