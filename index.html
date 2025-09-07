@@ -4539,13 +4539,10 @@
                     // Match the exact format used in actual game uploads
                     const testGameId = `test-game-${Date.now()}`;
                     options.body = JSON.stringify({
-                        id: testGameId, // Backend expects 'id' not 'gameId' for DynamoDB
-                        gameId: testGameId, // Include both for compatibility
+                        gameId: testGameId, // Backend validates this field
                         name: 'Test Game Debug',
-                        title: 'Test Game Debug', // Include both name and title
                         description: 'Debug test from developer portal',
                         category: 'Action',
-                        genre: 'Action', // Include both category and genre
                         developer: 'freddiecaplin@hotmail.com',
                         developerId: getDeveloperId() || 'dev_c84a7e',
                         deviceOrientation: 'Both',
