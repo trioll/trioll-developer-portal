@@ -97,7 +97,7 @@
         .iphone-screen {
             width: 100%;
             height: 100%;
-            background: #000;
+            background: transparent;
             border-radius: 30px;
             overflow: hidden;
             position: relative;
@@ -107,10 +107,24 @@
             justify-content: center;
             padding: 40px 20px;
         }
+        
+        .phone-starfield-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 1;
+            border-radius: 30px;
+            pointer-events: none;
+        }
 
         /* Lock Screen Content */
         .lock-content {
             text-align: center;
+            position: relative;
+            z-index: 1;
             width: 100%;
         }
 
@@ -630,7 +644,7 @@
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 20px;
-            overflow: hidden;
+            overflow: visible;
             transition: all 0.3s ease;
             position: relative;
         }
@@ -668,6 +682,7 @@
         .game-info {
             padding: 1.5rem;
             position: relative;
+            z-index: 1;
         }
 
         .game-title {
@@ -713,6 +728,8 @@
             font-size: 0.75rem;
             cursor: pointer;
             transition: all 0.2s;
+            z-index: 10;
+            pointer-events: auto;
         }
         
         .edit-button:hover {
@@ -1341,6 +1358,8 @@
     <div id="lockScreen" class="lock-screen">
         <div class="iphone-frame" id="iphoneFrame">
             <div class="iphone-screen">
+                <!-- Phone Starfield Canvas -->
+                <canvas class="phone-starfield-canvas" id="phoneStarfieldCanvas"></canvas>
                 <div class="lock-content">
                     <div class="time" id="timeDisplay">12:26</div>
                     <div class="date" id="dateDisplay">Friday 4 July</div>
@@ -1738,9 +1757,9 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Supported Device Orientation *</label>
+                            <label class="form-label">Supported Device Orientation</label>
                             <select class="form-select" id="deviceOrientation">
-                                <option value="">Select orientation</option>
+                                <option value="">Select orientation (optional)</option>
                                 <option value="Portrait">Portrait</option>
                                 <option value="Landscape">Landscape</option>
                                 <option value="Both">Both</option>
@@ -1748,9 +1767,9 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Control Style *</label>
+                            <label class="form-label">Control Style</label>
                             <select class="form-select" id="controlStyle">
-                                <option value="">Select control style</option>
+                                <option value="">Select control style (optional)</option>
                                 <option value="Tap & Swipe Only">Tap & Swipe Only</option>
                                 <option value="Virtual Joystick + Buttons">Virtual Joystick + Buttons</option>
                                 <option value="Twin Stick">Twin Stick</option>
@@ -2021,6 +2040,9 @@
                         <button class="btn btn-success" onclick="downloadDebugReport()">
                             📥 Download Debug Report
                         </button>
+                        <button class="btn btn-primary" onclick="testGameUpdateDirect()">
+                            🎮 Test Game Update
+                        </button>
                     </div>
                 </div>
                 
@@ -2044,7 +2066,7 @@
                             <button class="btn btn-sm" onclick="testEndpoint('/developers/profile', 'GET')">Profile Endpoint</button>
                             <button class="btn btn-sm" onclick="testEndpoint('/games', 'GET')">Games GET</button>
                             <button class="btn btn-sm" onclick="testEndpoint('/games', 'POST')">Games POST</button>
-                            <button class="btn btn-sm" onclick="testEndpoint('/comments', 'GET')">Comments API</button>
+                            <button class="btn btn-sm" onclick="logToDebugConsole('Comments API requires gameId - use /games/{gameId}/comments', 'info')">Comments API</button>
                         </div>
                     </div>
                     
@@ -2054,6 +2076,13 @@
                             <button class="btn btn-sm" onclick="testS3Upload()">S3 Upload Test</button>
                             <button class="btn btn-sm" onclick="testS3Permissions()">S3 Permissions</button>
                             <button class="btn btn-sm" onclick="testCloudFront()">CloudFront CDN</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 style="color: #10b981; margin-bottom: 0.5rem;">🎮 Game Management Tests</h4>
+                        <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" style="background: #10b981;" onclick="testGameUpdateDirect()">Test Game Update</button>
                         </div>
                     </div>
                     
@@ -2263,6 +2292,9 @@
         let awsInitialized = false;
         let uploadedGames = [];
 
+        // Test editGame availability on load
+        console.log('EditGame function available:', typeof window.editGame);
+        
         // Initialize AWS
         function initializeAWS() {
             const statusEl = document.getElementById('awsStatus');
@@ -2554,12 +2586,24 @@
             }
             
             resize() {
-                this.canvas.width = window.innerWidth;
-                this.canvas.height = window.innerHeight;
+                // Check if this is the phone starfield
+                if (this.canvas.id === 'phoneStarfieldCanvas') {
+                    // Set to phone screen dimensions
+                    const phoneScreen = this.canvas.parentElement;
+                    if (phoneScreen) {
+                        this.canvas.width = phoneScreen.offsetWidth;
+                        this.canvas.height = phoneScreen.offsetHeight;
+                    }
+                } else {
+                    // Normal full-screen starfield
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight;
+                }
             }
             
             init() {
-                const numStars = 400;
+                // Fewer stars for phone screen
+                const numStars = this.canvas.id === 'phoneStarfieldCanvas' ? 100 : 400;
                 for (let i = 0; i < numStars; i++) {
                     this.stars.push({
                         x: Math.random() * this.canvas.width,
@@ -2572,8 +2616,16 @@
             
             animate() {
                 // Clear with fade trail for subtle motion effect
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                const isPhone = this.canvas.id === 'phoneStarfieldCanvas';
+                
+                if (isPhone) {
+                    // For phone, use solid black background
+                    this.ctx.fillStyle = 'black';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                } else {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                }
                 
                 const centerX = this.canvas.width / 2;
                 const centerY = this.canvas.height / 2;
@@ -2593,13 +2645,23 @@
                     const x = (star.x - centerX) * (600 / star.z) + centerX;
                     const y = (star.y - centerY) * (600 / star.z) + centerY;
                     
-                    const size = (1 - star.z / 1000) * 2;
-                    const opacity = 1 - star.z / 1000;
+                    const isPhone = this.canvas.id === 'phoneStarfieldCanvas';
+                    const size = isPhone ? (1 - star.z / 1000) * 3 : (1 - star.z / 1000) * 2;
+                    const baseOpacity = 1 - star.z / 1000;
+                    const opacity = isPhone ? Math.min(baseOpacity * 1.5, 1) : baseOpacity;
                     
                     this.ctx.beginPath();
                     this.ctx.arc(x, y, size, 0, Math.PI * 2);
                     this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
                     this.ctx.fill();
+                    
+                    // Add glow effect for phone
+                    if (isPhone && size > 1) {
+                        this.ctx.beginPath();
+                        this.ctx.arc(x, y, size * 2, 0, Math.PI * 2);
+                        this.ctx.fillStyle = `rgba(200, 200, 255, ${opacity * 0.3})`;
+                        this.ctx.fill();
+                    }
                 }
                 
                 requestAnimationFrame(() => this.animate());
@@ -2616,6 +2678,27 @@
                 this.locked = false;
                 
                 this.init();
+                
+                // Initialize phone starfield after a delay to ensure DOM is ready
+                setTimeout(() => {
+                    const phoneStarfieldCanvas = document.getElementById('phoneStarfieldCanvas');
+                    if (phoneStarfieldCanvas) {
+                        console.log('Initializing phone starfield...');
+                        console.log('Canvas dimensions:', phoneStarfieldCanvas.width, phoneStarfieldCanvas.height);
+                        
+                        // Set canvas size explicitly
+                        const phoneScreen = phoneStarfieldCanvas.parentElement;
+                        phoneStarfieldCanvas.width = phoneScreen.offsetWidth;
+                        phoneStarfieldCanvas.height = phoneScreen.offsetHeight;
+                        
+                        this.phoneStarfield = new StarfieldSystem(phoneStarfieldCanvas);
+                        this.phoneStarfield.speed = 0.3; // Slower speed for phone
+                        this.phoneStarfield.animate();
+                        console.log('Phone starfield initialized with size:', phoneStarfieldCanvas.width, 'x', phoneStarfieldCanvas.height);
+                    } else {
+                        console.error('Phone starfield canvas not found!');
+                    }
+                }, 100);
             }
             
             init() {
@@ -3154,7 +3237,7 @@
                         }
                         <br>
                         <span class="game-status status-${game.status || 'active'}">
-                            ${game.status === 'active' ? 'Active' : 'Pending'}
+                            ${!game.status || game.status === 'active' ? 'Active' : 'Pending'}
                         </span>
                     </div>
                 </div>
@@ -3313,7 +3396,7 @@
                         }
                         <br>
                         <span class="game-status status-${game.status || 'active'}">
-                            ${game.status === 'active' ? 'Active' : 'Pending'}
+                            ${!game.status || game.status === 'active' ? 'Active' : 'Pending'}
                         </span>
                     </div>
                 </div>
@@ -3673,11 +3756,17 @@
 
         // Edit game function
         async function editGame(gameId) {
-            console.log('Edit function called for game:', gameId);
+            console.log('=== EDIT GAME FUNCTION CALLED ===');
+            console.log('Game ID:', gameId);
+            console.log('Function context:', this);
+            console.log('Caller:', arguments.callee.caller);
             
             // Get developer ID to verify ownership
-            const developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            const developerId = getDeveloperId();
+            console.log('Developer ID:', developerId);
+            
             if (!developerId) {
+                console.error('No developer ID found');
                 showAlert('Please login to edit games', 'error');
                 return;
             }
@@ -3685,8 +3774,11 @@
             // Find the game in our data
             let game = null;
             
+            console.log('Looking for game in uploadedGames:', uploadedGames.length, 'games');
+            
             // Check in uploadedGames first
             game = uploadedGames.find(g => (g.id || g.gameId) === gameId);
+            console.log('Game found in uploadedGames:', !!game);
             
             if (!game) {
                 // Try loading from API
@@ -3739,7 +3831,14 @@
             }
             
             // Show the modal
-            document.getElementById('editGameModal').classList.add('active');
+            console.log('Attempting to show modal...');
+            const modal = document.getElementById('editGameModal');
+            if (modal) {
+                modal.classList.add('active');
+                console.log('Modal shown');
+            } else {
+                console.error('Edit modal not found in DOM!');
+            }
         }
         
         // Close edit modal
@@ -3985,11 +4084,13 @@
             };
             
             // Storage info
-            const token = localStorage.getItem('developerToken');
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken') || 
+                          (typeof auth !== 'undefined' && auth.token ? auth.token : null);
+            const developerId = getDeveloperId();
             const storageInfo = {
                 'LocalStorage Items': Object.keys(localStorage).length,
                 'SessionStorage Items': Object.keys(sessionStorage).length,
-                'Developer ID': localStorage.getItem('developerId') || 'Not set',
+                'Developer ID': developerId || 'Not set',
                 'Token Status': token ? (isTokenExpired(token) ? 'Expired' : 'Valid') : 'No token'
             };
             
@@ -4131,6 +4232,99 @@
             }
         }
         
+        async function testGameUpdateDirect() {
+            logToDebugConsole('=== Starting Direct Game Update Test ===', 'info');
+            
+            // Get token
+            const token = validateAndGetToken();
+            if (!token) {
+                logToDebugConsole('No authentication token found!', 'error');
+                return;
+            }
+            
+            logToDebugConsole('Token found, fetching your games...', 'info');
+            
+            try {
+                // Get games list
+                const gamesResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!gamesResponse.ok) {
+                    throw new Error(`Failed to fetch games: ${gamesResponse.status}`);
+                }
+                
+                const gamesData = await gamesResponse.json();
+                const developerId = getDeveloperId();
+                const myGames = gamesData.games.filter(g => 
+                    g.developerId === developerId || g.developer === developerId
+                );
+                
+                if (myGames.length === 0) {
+                    logToDebugConsole('No games found for your developer ID', 'error');
+                    return;
+                }
+                
+                // Use first game or Horror Pong if available
+                const targetGame = myGames.find(g => g.name && g.name.toLowerCase().includes('horror')) || myGames[0];
+                const gameId = targetGame.id || targetGame.gameId;
+                
+                logToDebugConsole(`Found game: ${targetGame.name} (ID: ${gameId})`, 'success');
+                logToDebugConsole('Sending update request...', 'info');
+                
+                const updateData = {
+                    name: targetGame.name,
+                    description: `Updated via debug test at ${new Date().toLocaleString()}`,
+                    category: targetGame.category || 'Action',
+                    status: 'active'
+                };
+                
+                logToDebugConsole('Update payload:', 'info');
+                logToDebugConsole(JSON.stringify(updateData, null, 2), 'info');
+                
+                // Send update
+                const updateResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${gameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                const responseText = await updateResponse.text();
+                
+                if (updateResponse.ok) {
+                    logToDebugConsole('✅ Update successful!', 'success');
+                    logToDebugConsole(`Response: ${responseText}`, 'info');
+                    
+                    // Show success message in console
+                    logToDebugConsole('🎉 Game updated successfully!', 'success');
+                } else {
+                    logToDebugConsole(`❌ Update failed (${updateResponse.status})`, 'error');
+                    logToDebugConsole(`Response: ${responseText}`, 'error');
+                    
+                    // Parse error if possible
+                    try {
+                        const error = JSON.parse(responseText);
+                        logToDebugConsole(`Error: ${error.message || 'Unknown error'}`, 'error');
+                    } catch (e) {
+                        // Response wasn't JSON
+                    }
+                }
+                
+            } catch (error) {
+                logToDebugConsole(`Error: ${error.message}`, 'error');
+                logToDebugConsole(error.stack, 'error');
+            }
+            
+            logToDebugConsole('=== Test Complete ===', 'info');
+        }
+
         async function downloadDebugReport() {
             const report = {
                 timestamp: new Date().toISOString(),
@@ -4189,6 +4383,29 @@
                     const payload = JSON.parse(atob(parts[1]));
                     logToDebugConsole(`Token email: ${payload.email || payload['cognito:username'] || 'unknown'}`);
                     logToDebugConsole(`Token exp: ${new Date(payload.exp * 1000).toLocaleString()}`);
+                    
+                    // Add token display with copy button
+                    logToDebugConsole('===== YOUR TOKEN (Click to copy) =====', 'info');
+                    const tokenDiv = document.createElement('div');
+                    tokenDiv.style.cssText = 'background: #2a2a2a; padding: 10px; margin: 10px 0; border-radius: 8px; word-break: break-all; cursor: pointer; border: 1px solid #3a3a3a; font-family: monospace; font-size: 12px;';
+                    tokenDiv.textContent = token;
+                    tokenDiv.title = 'Click to copy token';
+                    tokenDiv.onclick = () => {
+                        navigator.clipboard.writeText(token).then(() => {
+                            logToDebugConsole('Token copied to clipboard!', 'success');
+                        }).catch(() => {
+                            // Fallback for older browsers
+                            const textArea = document.createElement('textarea');
+                            textArea.value = token;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textArea);
+                            logToDebugConsole('Token copied to clipboard!', 'success');
+                        });
+                    };
+                    document.getElementById('debugOutput').appendChild(tokenDiv);
+                    logToDebugConsole('===== END TOKEN =====', 'info');
                 } catch (e) {
                     logToDebugConsole('Could not decode token payload', 'error');
                 }
@@ -4227,14 +4444,20 @@
         
         async function testRefreshToken() {
             logToDebugConsole('Testing refresh token...');
-            const refreshToken = localStorage.getItem('refreshToken');
+            
+            // Check both possible locations with correct key name
+            const refreshTokenLocal = localStorage.getItem('developerRefreshToken');
+            const refreshTokenSession = sessionStorage.getItem('developerRefreshToken');
+            const refreshToken = refreshTokenLocal || refreshTokenSession;
             
             if (!refreshToken) {
                 logToDebugConsole('No refresh token found', 'error');
+                logToDebugConsole('This is normal if you did not check "Remember Me" during login', 'info');
                 return;
             }
             
             logToDebugConsole('Refresh token present (not testing actual refresh)', 'info');
+            logToDebugConsole(`Stored in: ${refreshTokenLocal ? 'localStorage' : 'sessionStorage'}`, 'info');
         }
         
         async function testCognitoConnection() {
@@ -4245,11 +4468,31 @@
         
         async function testEndpoint(path, method = 'GET') {
             logToDebugConsole(`Testing ${method} ${path}...`);
-            const token = localStorage.getItem('developerToken');
+            
+            // Debug token retrieval
+            const localToken = localStorage.getItem('developerToken');
+            const sessionToken = sessionStorage.getItem('developerToken');
+            const authToken = (typeof auth !== 'undefined' && auth.token) ? auth.token : null;
+            
+            logToDebugConsole(`Debug - localStorage token: ${localToken ? 'exists' : 'null'}`);
+            logToDebugConsole(`Debug - sessionStorage token: ${sessionToken ? 'exists' : 'null'}`); 
+            logToDebugConsole(`Debug - auth.token: ${authToken ? 'exists' : 'null'}`);
+            
+            // Use validateAndGetToken function instead
+            let token = validateAndGetToken();
+            
+            // If no token from validateAndGetToken, try direct access
+            if (!token) {
+                token = sessionToken || localToken || authToken;
+                if (token) {
+                    logToDebugConsole('Using fallback token retrieval', 'warning');
+                }
+            }
+            
             const hasToken = !!token;
             const isExpired = token ? isTokenExpired(token) : false;
             
-            logToDebugConsole(`Token status: ${hasToken ? (isExpired ? 'Expired' : 'Valid') : 'None'}`, 'info');
+            logToDebugConsole(`Token status: ${hasToken ? (isExpired ? 'Expired' : 'Valid') : 'None'}`);
             
             const headers = {
                 'Content-Type': 'application/json'
@@ -4267,21 +4510,30 @@
                 const options = { method, headers };
                 
                 if (method === 'POST' && path === '/games') {
+                    logToDebugConsole('Note: This test creates a database entry only (no actual files)', 'warning');
+                    // Match the exact format used in actual game uploads
+                    const testGameId = `test-game-${Date.now()}`;
                     options.body = JSON.stringify({
-                        gameId: `test-${Date.now()}`,
-                        name: 'Test Game',
-                        description: 'Debug test',
-                        category: 'Test',
-                        developer: 'Debug',
-                        developerId: localStorage.getItem('developerId') || 'test',
-                        deviceOrientation: 'both',
-                        controlStyle: 'touchscreen',
-                        gameStage: 'production',
-                        deviceCompatibility: ['desktop', 'mobile', 'tablet'], // Add missing field
-                        gameUrl: 'https://example.com/test.html',
-                        thumbnailUrl: 'https://example.com/test.png',
+                        id: testGameId, // Backend expects 'id' not 'gameId' for DynamoDB
+                        gameId: testGameId, // Include both for compatibility
+                        name: 'Test Game Debug',
+                        title: 'Test Game Debug', // Include both name and title
+                        description: 'Debug test from developer portal',
+                        category: 'Action',
+                        genre: 'Action', // Include both category and genre
+                        developer: 'freddiecaplin@hotmail.com',
+                        developerId: getDeveloperId() || 'dev_c84a7e',
+                        deviceOrientation: 'Both',
+                        controlStyle: 'Tap & Swipe Only',
+                        gameStage: 'Released (In App Store)',
+                        deviceCompatibility: ['Mobile iOS', 'Mobile Android', 'Computer/Laptop'],
+                        gameUrl: `https://trioll-prod-games-us-east-1.s3.amazonaws.com/${testGameId}/index.html`,
+                        thumbnailUrl: `https://trioll-prod-games-us-east-1.s3.amazonaws.com/${testGameId}/thumbnail.png`,
                         status: 'active',
-                        publishedAt: new Date().toISOString()
+                        publishedAt: new Date().toISOString(),
+                        uploadedAt: new Date().toISOString(),
+                        lastModified: new Date().toISOString(),
+                        buildId: `BUILD-${Date.now()}-TEST`
                     });
                     logToDebugConsole('Request body: ' + options.body, 'info');
                 }
@@ -5055,9 +5307,62 @@
         window.editGame = editGame;
         window.closeEditModal = closeEditModal;
         window.handleGameUpdate = handleGameUpdate;
+        
+        // Debug functions for testing
+        window.testEditModal = function() {
+            console.log('=== TESTING EDIT MODAL ===');
+            const modal = document.getElementById('editGameModal');
+            if (!modal) {
+                console.error('Edit modal element not found!');
+                return;
+            }
+            console.log('Modal element found:', modal);
+            console.log('Current classes:', modal.className);
+            console.log('Current display:', window.getComputedStyle(modal).display);
+            
+            // Force show the modal
+            modal.classList.add('active');
+            console.log('Added active class');
+            console.log('New display:', window.getComputedStyle(modal).display);
+            
+            // Check if modal is visible
+            const rect = modal.getBoundingClientRect();
+            console.log('Modal position:', rect);
+            console.log('Is visible?', rect.width > 0 && rect.height > 0);
+        };
+        
+        window.testEditButton = function() {
+            console.log('=== TESTING EDIT BUTTON ===');
+            console.log('Number of games:', uploadedGames.length);
+            
+            if (uploadedGames.length === 0) {
+                console.log('No games loaded. Try loading games first.');
+                loadGamesFromAPI();
+                return;
+            }
+            
+            const game = uploadedGames[0];
+            console.log('Test game:', {
+                name: game.name || game.title,
+                id: game.id || game.gameId,
+                developerId: game.developerId
+            });
+            
+            console.log('Calling editGame with ID:', game.id || game.gameId);
+            editGame(game.id || game.gameId);
+        };
 
         window.addEventListener('DOMContentLoaded', () => {
             console.log('Page loaded - initializing Trioll Developer Portal');
+            
+            // Debug click events
+            document.addEventListener('click', (e) => {
+                if (e.target.className && e.target.className.includes('edit-button')) {
+                    console.log('Edit button clicked directly!');
+                    console.log('Button element:', e.target);
+                    console.log('Parent element:', e.target.parentElement);
+                }
+            });
             
             // Initialize visual effects
             const starfieldCanvas = document.getElementById('starfieldCanvas');
@@ -5065,6 +5370,57 @@
             starfieldSystem.animate();
             
             const lockScreen = new LockScreen();
+            
+            // Add event delegation for edit buttons
+            document.addEventListener('click', function(e) {
+                // Check if clicked element is an edit button
+                if (e.target && e.target.classList.contains('edit-button')) {
+                    e.preventDefault();
+                    console.log('Edit button clicked via delegation');
+                    
+                    // Get game ID from parent game card
+                    const gameCard = e.target.closest('.game-card');
+                    if (gameCard) {
+                        const gameId = gameCard.getAttribute('data-game-id');
+                        console.log('Found game ID:', gameId);
+                        if (gameId && typeof editGame === 'function') {
+                            editGame(gameId);
+                        } else {
+                            console.error('editGame function not found or no game ID');
+                        }
+                    }
+                }
+                
+                // Handle delete buttons too
+                if (e.target && e.target.classList.contains('delete-button')) {
+                    e.preventDefault();
+                    console.log('Delete button clicked via delegation');
+                    const gameCard = e.target.closest('.game-card');
+                    if (gameCard) {
+                        const gameId = gameCard.getAttribute('data-game-id');
+                        const gameTitle = gameCard.querySelector('.game-title')?.textContent || 'Unknown Game';
+                        if (gameId && typeof deleteGame === 'function') {
+                            deleteGame(gameId, gameTitle);
+                        }
+                    }
+                }
+            });
+            
+            // Add Game Update Test button dynamically
+            setTimeout(() => {
+                const storageTestsDiv = document.querySelector('h4[style*="color: #fbbf24"]')?.parentElement;
+                if (storageTestsDiv) {
+                    const gameTestDiv = document.createElement('div');
+                    gameTestDiv.innerHTML = `
+                        <h4 style="color: #10b981; margin-bottom: 0.5rem; margin-top: 1rem;">🎮 Game Management Tests</h4>
+                        <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" style="background: #10b981;" onclick="testGameUpdateDirect()">Test Game Update</button>
+                        </div>
+                    `;
+                    storageTestsDiv.insertAdjacentElement('afterend', gameTestDiv);
+                    console.log('Added Game Update Test button');
+                }
+            }, 1000);
             
             // Initialize AWS immediately
             console.log('Initializing AWS SDK...');
