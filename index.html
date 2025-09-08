@@ -2083,6 +2083,10 @@
                         <h4 style="color: #10b981; margin-bottom: 0.5rem;">🎮 Game Management Tests</h4>
                         <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-sm" style="background: #10b981;" onclick="testGameUpdateDirect()">Test Game Update</button>
+                            <button class="btn btn-sm" style="background: #3b82f6;" onclick="runComprehensiveTests()">🚀 Run All Tests</button>
+                            <button class="btn btn-sm" onclick="testOwnershipVerification()">🔒 Test Ownership</button>
+                            <button class="btn btn-sm" onclick="testDeveloperGames()">📋 My Games API</button>
+                            <button class="btn btn-sm" onclick="checkDeveloperIdStandardization()">🔧 Check Standardization</button>
                         </div>
                     </div>
                     
@@ -4413,6 +4417,220 @@
             a.click();
             
             logToDebugConsole('Debug report downloaded', 'success');
+        }
+
+        // Comprehensive Test Functions
+        async function runComprehensiveTests() {
+            logToDebugConsole('=== 🚀 STARTING COMPREHENSIVE TEST SUITE ===', 'info');
+            logToDebugConsole('Running all tests in sequence...', 'info');
+            
+            // Test 1: Authentication
+            logToDebugConsole('\n📌 Test 1/5: Authentication', 'info');
+            const authOk = await checkAuthStatus();
+            if (!authOk) {
+                logToDebugConsole('❌ Authentication failed. Stopping tests.', 'error');
+                return;
+            }
+            
+            // Test 2: Developer Games
+            logToDebugConsole('\n📌 Test 2/5: Developer Games API', 'info');
+            await testDeveloperGames();
+            
+            // Test 3: Game Update
+            logToDebugConsole('\n📌 Test 3/5: Game Update Functionality', 'info');
+            await testGameUpdateDirect();
+            
+            // Test 4: Ownership Verification
+            logToDebugConsole('\n📌 Test 4/5: Ownership Verification', 'info');
+            await testOwnershipVerification();
+            
+            // Test 5: Developer ID Standardization
+            logToDebugConsole('\n📌 Test 5/5: Developer ID Standardization', 'info');
+            await checkDeveloperIdStandardization();
+            
+            logToDebugConsole('\n=== ✅ COMPREHENSIVE TESTS COMPLETE ===', 'success');
+        }
+        
+        async function testDeveloperGames() {
+            logToDebugConsole('Testing /developers/games endpoint...', 'info');
+            
+            const token = validateAndGetToken();
+            if (!token) {
+                logToDebugConsole('No authentication token', 'error');
+                return null;
+            }
+            
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    logToDebugConsole(`Failed to fetch developer games: ${response.status}`, 'error');
+                    logToDebugConsole(error, 'error');
+                    return null;
+                }
+                
+                const data = await response.json();
+                const games = data.games || [];
+                
+                logToDebugConsole(`✅ Found ${games.length} games for developer`, 'success');
+                
+                if (data.stats) {
+                    logToDebugConsole('📊 Developer Stats:', 'info');
+                    logToDebugConsole(`  Total Plays: ${data.stats.totalPlays}`, 'info');
+                    logToDebugConsole(`  Total Ratings: ${data.stats.totalRatings}`, 'info');
+                    logToDebugConsole(`  Average Rating: ${data.stats.averageRating}⭐`, 'info');
+                }
+                
+                // Display games summary
+                games.forEach((game, idx) => {
+                    if (idx < 3) { // Show first 3 games
+                        logToDebugConsole(`  🎮 "${game.title || game.name}" (${game.id})`, 'info');
+                    }
+                });
+                
+                if (games.length > 3) {
+                    logToDebugConsole(`  ... and ${games.length - 3} more games`, 'info');
+                }
+                
+                return games;
+            } catch (e) {
+                logToDebugConsole(`Network error: ${e.message}`, 'error');
+                return null;
+            }
+        }
+        
+        async function testOwnershipVerification() {
+            logToDebugConsole('Testing ownership verification system...', 'info');
+            
+            const token = validateAndGetToken();
+            if (!token) {
+                logToDebugConsole('No authentication token', 'error');
+                return;
+            }
+            
+            // Get developer's games first
+            const games = await testDeveloperGames();
+            if (!games || games.length === 0) {
+                logToDebugConsole('No games found to test ownership', 'warning');
+                return;
+            }
+            
+            // Test 1: Update own game
+            logToDebugConsole('\n1️⃣ Testing update on own game...', 'info');
+            const ownGame = games[0];
+            const gameId = ownGame.id;
+            
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${gameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify({
+                        name: ownGame.title || ownGame.name,
+                        description: `Ownership test at ${new Date().toLocaleTimeString()}`,
+                        category: ownGame.category || 'Action'
+                    })
+                });
+                
+                if (response.ok) {
+                    logToDebugConsole('✅ Successfully updated own game', 'success');
+                } else {
+                    const error = await response.text();
+                    logToDebugConsole(`❌ Failed to update own game: ${error}`, 'error');
+                }
+            } catch (e) {
+                logToDebugConsole(`Network error: ${e.message}`, 'error');
+            }
+            
+            // Test 2: Try to update non-existent game
+            logToDebugConsole('\n2️⃣ Testing rejection for non-existent game...', 'info');
+            const fakeGameId = 'fake-game-' + Date.now();
+            
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games/${fakeGameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify({
+                        name: 'Should Fail',
+                        description: 'This should not work',
+                        category: 'Test'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    if (error.includes('not found') || error.includes('ownership')) {
+                        logToDebugConsole('✅ Correctly rejected non-existent game update', 'success');
+                    } else {
+                        logToDebugConsole(`⚠️ Rejected with: ${error}`, 'warning');
+                    }
+                } else {
+                    logToDebugConsole('❌ SECURITY ISSUE: Could update non-existent game!', 'error');
+                }
+            } catch (e) {
+                logToDebugConsole(`Network error: ${e.message}`, 'error');
+            }
+        }
+        
+        async function checkDeveloperIdStandardization() {
+            logToDebugConsole('Checking developer ID standardization...', 'info');
+            
+            const token = validateAndGetToken();
+            if (!token) {
+                logToDebugConsole('No authentication token', 'error');
+                return;
+            }
+            
+            // Get current developer ID from token
+            let currentDevId = 'Unknown';
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                currentDevId = payload['custom:developer_id'] || 'Unknown';
+                logToDebugConsole(`Your developer ID: ${currentDevId}`, 'info');
+            } catch (e) {
+                logToDebugConsole('Could not parse token', 'error');
+            }
+            
+            // Get games
+            const games = await testDeveloperGames();
+            if (!games || games.length === 0) {
+                logToDebugConsole('No games to check', 'info');
+                return;
+            }
+            
+            let needsStandardization = 0;
+            let standardized = 0;
+            
+            games.forEach(game => {
+                if (game.developerId === currentDevId) {
+                    standardized++;
+                } else {
+                    needsStandardization++;
+                    logToDebugConsole(`⚠️ "${game.title}" has developerId: ${game.developerId || 'none'}`, 'warning');
+                }
+            });
+            
+            logToDebugConsole('\n📊 Standardization Status:', 'info');
+            logToDebugConsole(`  ✅ Standardized: ${standardized} games`, 'success');
+            logToDebugConsole(`  ⚠️ Need update: ${needsStandardization} games`, needsStandardization > 0 ? 'warning' : 'success');
+            
+            if (needsStandardization > 0) {
+                logToDebugConsole('\n💡 To fix this, run:', 'info');
+                logToDebugConsole('  cd backend-updates && ./run-developer-standardization.sh', 'info');
+            }
         }
         
         // New test functions
