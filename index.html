@@ -4341,7 +4341,7 @@
                 logToDebugConsole('Sending update request...', 'info');
                 
                 const updateData = {
-                    name: targetGame.name,
+                    name: targetGame.name || targetGame.title || 'Unknown Game',
                     description: `Updated via debug test at ${new Date().toLocaleString()}`,
                     category: targetGame.category || 'Action',
                     status: 'active'
@@ -4598,10 +4598,12 @@
             let currentDevId = 'Unknown';
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
-                currentDevId = payload['custom:developer_id'] || 'Unknown';
+                currentDevId = payload['custom:developer_id'] || payload.developerId || getDeveloperId();
                 logToDebugConsole(`Your developer ID: ${currentDevId}`, 'info');
+                logToDebugConsole(`Email: ${payload.email || 'Unknown'}`, 'info');
             } catch (e) {
                 logToDebugConsole('Could not parse token', 'error');
+                currentDevId = getDeveloperId(); // Fallback to helper function
             }
             
             // Get games
