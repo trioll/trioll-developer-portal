@@ -3852,12 +3852,7 @@
             }
             
             // Verify developer owns this game
-            // Check multiple possible matches since games might use different identifier formats
-            const isDeveloperMatch = 
-                game.developerId === developerId ||  // Current developer ID format
-                game.developer === developerId ||     // Legacy field might contain developer ID
-                game.developer === userEmail ||       // Legacy games might use email
-                game.developerId === userEmail;       // Some games might have email in developerId
+            const isDeveloperMatch = game.developerId === developerId;
             
             console.log('Ownership check:', {
                 gameDeveloperId: game.developerId,
