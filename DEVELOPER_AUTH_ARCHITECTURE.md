@@ -1,5 +1,7 @@
 # Trioll Developer Authentication Architecture
 
+**Last Updated**: January 8, 2025
+
 ## Overview
 
 This document outlines the implementation strategy for adding user authentication to the Trioll Developer Portal (triolldev.com), allowing developers to sign up with email/password and have their own upload portal with unique developer IDs.
