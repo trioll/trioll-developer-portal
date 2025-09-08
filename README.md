@@ -2,13 +2,15 @@
 
 A web-based developer portal for the TRIOLL gaming platform, allowing developers to upload and manage their games.
 
-## Recent Updates (September 2025)
+## Recent Updates (September 2025 - January 2025)
 
-### 🔐 Authentication & Developer ID Management
-- **Fixed**: Login now automatically fetches and saves developer ID from API
-- **Fixed**: Developer ID persists across sessions (respects "Remember me" checkbox)
-- **Added**: Debug tab with comprehensive troubleshooting tools
-- **Added**: "Fix Developer ID" button for manual recovery if ID is missing
+### 🔐 Authentication & Developer ID Management (January 5, 2025)
+- **CRITICAL FIX**: Resolved developer ID mismatch between JWT tokens and localStorage
+- **Fixed**: Frontend now extracts developer ID from JWT token (e.g., "dev_c84a7e") instead of storing company name
+- **Fixed**: Lambda functions updated to support both custom and standard Cognito attributes
+- **Fixed**: "My Games" tab now properly displays developer's uploaded games
+- **Updated**: 9 historical games in DynamoDB corrected to use proper developer IDs
+- **Added**: Multiple debugging tools for token inspection and quick fixes
 
 ### 🚀 API Improvements
 - **Fixed**: API now expects `name` field instead of `title` for games
@@ -71,12 +73,17 @@ Simply open `index.html` in a web browser. No build process required.
 
 ## Troubleshooting
 
-### Developer ID Missing After Login
-If your developer ID is not showing after login:
+### Developer ID Missing or Incorrect After Login
+If your games aren't showing in "My Games" or developer ID is incorrect:
 
-1. Go to the **Debug** tab
+1. **Quick Fix**: Open `fix-frontend-developer-id.html` in your browser
 2. Click **"Fix Developer ID"** button
-3. This will fetch your developer info from the API and save it locally
+3. This will sync your developer ID from your JWT token
+
+**Alternative Manual Fix:**
+1. Go to the **Debug** tab
+2. Check if developer ID matches your JWT token (should be like "dev_xxxxx", not your company name)
+3. If mismatched, clear storage and re-login
 
 ### Upload Failed: Failed to fetch
 Common causes and solutions:
@@ -92,9 +99,11 @@ Common causes and solutions:
 4. **API issues**: Use Debug tab to test API connectivity
 
 ### Game Not Appearing in "My Games"
-- Ensure your developer ID is set (check Debug tab)
-- The game must have your developer ID attached
-- Try refreshing the page
+- **Most Common Issue**: Developer ID mismatch (stored company name instead of dev_xxxxx)
+- **Fix**: Use `fix-frontend-developer-id.html` to sync correct developer ID
+- Ensure your developer ID matches JWT token (check with `check-my-token.html`)
+- The game must have your correct developer ID (dev_xxxxx) attached
+- Games uploaded before January 2025 may need database correction
 
 ### CORS Errors
 If you see CORS errors in the browser console:
@@ -113,7 +122,19 @@ The portal uses these API endpoints:
 
 - Authentication is handled by AWS Cognito
 - Tokens are stored in localStorage (if "Remember me" checked) or sessionStorage
-- Developer IDs follow the pattern: `dev_xxxxx`
+- Developer IDs follow the pattern: `dev_xxxxx` (extracted from JWT token)
+- **Important**: Developer ID must come from JWT token, not from user input
+
+## Known Issues & Fixes
+
+### Developer ID Architecture
+The system uses JWT tokens as the source of truth for developer IDs:
+- **Correct**: Extract developer ID from `payload['custom:developer_id']` in JWT token
+- **Incorrect**: Storing company name or user-provided values as developer ID
+
+For implementation details, see:
+- `DEVELOPER_ID_FIX_SUMMARY.md` - Complete fix documentation
+- `apply-developer-id-fixes.html` - Step-by-step implementation guide
 
 ## License
 

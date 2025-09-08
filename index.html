@@ -2161,10 +2161,8 @@
                         }
                     }
                     
-                    // Also ensure developerId is in localStorage
-                    if (this.developerInfo && this.developerInfo.developerId) {
-                        localStorage.setItem('developerId', this.developerInfo.developerId);
-                    }
+                    // Always sync from token
+                    syncDeveloperIdFromToken();
                     
                     return !!this.token;
                 },
@@ -2194,6 +2192,35 @@
                 console.error('Error checking token expiry:', error);
                 return true;
             }
+        }
+
+        // Developer ID utility functions
+        function getDeveloperIdFromToken() {
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (!token) return null;
+            
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload['custom:developer_id'] || payload.preferred_username || null;
+            } catch (e) {
+                console.error('Error extracting developer ID from token:', e);
+                return null;
+            }
+        }
+
+        function getDeveloperId() {
+            return getDeveloperIdFromToken();
+        }
+
+        function syncDeveloperIdFromToken() {
+            const developerId = getDeveloperIdFromToken();
+            if (developerId) {
+                localStorage.setItem('developerId', developerId);
+                sessionStorage.setItem('developerId', developerId);
+                console.log('✅ Developer ID synced:', developerId);
+                return true;
+            }
+            return false;
         }
 
         function validateAndGetToken() {
@@ -3252,26 +3279,18 @@
         // Load only the developer's games
         async function loadMyGames() {
             const myGamesGrid = document.getElementById('myGamesGrid');
-            const developerId = document.getElementById('developerId')?.value || 
-                               localStorage.getItem('developerId') || 
-                               sessionStorage.getItem('developerId');
+            const developerId = getDeveloperId();
             
             if (!developerId) {
-                console.log('No developer ID found. Checking auth service...');
-                
-                // Try to get from auth service
-                if (typeof auth !== 'undefined' && auth.developerInfo && auth.developerInfo.developerId) {
-                    localStorage.setItem('developerId', auth.developerInfo.developerId);
-                } else {
-                    myGamesGrid.innerHTML = `
-                        <div style="grid-column: 1/-1; text-align: center; color: var(--text-gray-400); padding: 3rem;">
-                            <p>Unable to load games - Developer ID not found</p>
-                            <p style="margin-top: 1rem;">Please login to view your games</p>
-                            <button class="btn btn-primary" onclick="showAuthScreen()" style="margin-top: 1rem;">Login</button>
-                        </div>
-                    `;
-                    return;
-                }
+                console.error('No developer ID found in token');
+                myGamesGrid.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; color: var(--text-gray-400); padding: 3rem;">
+                        <p>Unable to load games - Developer ID not found</p>
+                        <p style="margin-top: 1rem;">Please login to view your games</p>
+                        <button class="btn btn-primary" onclick="showAuthScreen()" style="margin-top: 1rem;">Login</button>
+                    </div>
+                `;
+                return;
             }
             
             myGamesGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center;">Loading your games...</div>';
@@ -4206,8 +4225,10 @@
                 if (response.ok) {
                     const data = await response.json();
                     const dev = data.developer || data;
+                    const tokenDevId = getDeveloperId();
+                    const displayId = tokenDevId || dev.developerId;
                     updateStatusCard('profileStatus', '✅', 'Profile Active', 
-                        `ID: ${dev.developerId} | ${dev.companyName}`, 'success');
+                        `ID: ${displayId} | ${dev.companyName}`, 'success');
                     logToDebugConsole('Profile loaded successfully', 'success');
                 } else {
                     updateStatusCard('profileStatus', '❌', `Error ${response.status}`, 
@@ -4400,7 +4421,7 @@
                 },
                 auth: {
                     hasToken: !!localStorage.getItem('developerToken'),
-                    developerId: localStorage.getItem('developerId')
+                    developerId: getDeveloperId()
                 },
                 awsConfig: AWS_CONFIG,
                 localStorage: Object.keys(localStorage),
@@ -4926,7 +4947,7 @@
         async function checkDebugAuth() {
             const outputEl = document.getElementById('debugOutput');
             const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
-            let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            let developerId = getDeveloperId();
             
             if (!token) {
                 outputEl.innerHTML = `
@@ -4987,7 +5008,7 @@
             outputEl.innerHTML = '<div class="alert alert-info">🔄 Testing API connection...</div>';
             
             const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
-            let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            let developerId = getDeveloperId();
             
             // If no developer ID but we have a token, automatically fetch it
             if (!developerId && token) {
@@ -5299,11 +5320,16 @@
                 const data = await response.json();
                 const developerInfo = data.developer || data;
                 
-                if (developerInfo && developerInfo.developerId) {
-                    // Save the developer ID and info
-                    localStorage.setItem('developerId', developerInfo.developerId);
-                    sessionStorage.setItem('developerId', developerInfo.developerId);
-                    localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
+                // First sync from token
+                const tokenDevId = syncDeveloperIdFromToken();
+                
+                if (tokenDevId) {
+                    // Update developer info with token ID
+                    const devInfo = {
+                        ...developerInfo,
+                        developerId: getDeveloperId() // Always use token value
+                    };
+                    localStorage.setItem('developerInfo', JSON.stringify(devInfo));
                     
                     outputEl.innerHTML = `
                         <div class="alert alert-success">
@@ -5406,10 +5432,16 @@
                     auth.refreshToken = tokens.refreshToken;
                     auth.developerInfo = developer || {};
                     
-                    // Save developer info
-                    if (developer && developer.developerId) {
-                        localStorage.setItem('developerInfo', JSON.stringify(developer));
-                        localStorage.setItem('developerId', developer.developerId);
+                    // Sync developer ID from JWT token
+                    syncDeveloperIdFromToken();
+                    
+                    // Store other developer info if provided
+                    if (developer) {
+                        const devInfo = {
+                            ...developer,
+                            developerId: getDeveloperId() // Always use token value
+                        };
+                        localStorage.setItem('developerInfo', JSON.stringify(devInfo));
                     }
                     
                     // Call refresh from storage to ensure sync
@@ -5429,16 +5461,21 @@
                     initializeAWS();
                 }, 100);
                 
+                // Sync developer ID from token
+                syncDeveloperIdFromToken();
+                
                 // Store developer info if provided
-                if (developer && developer.developerId) {
+                if (developer) {
+                    const devInfo = {
+                        ...developer,
+                        developerId: getDeveloperId() // Always use token value
+                    };
                     if (rememberMe) {
-                        localStorage.setItem('developerId', developer.developerId);
-                        localStorage.setItem('developerInfo', JSON.stringify(developer));
+                        localStorage.setItem('developerInfo', JSON.stringify(devInfo));
                     } else {
-                        sessionStorage.setItem('developerId', developer.developerId);
-                        sessionStorage.setItem('developerInfo', JSON.stringify(developer));
+                        sessionStorage.setItem('developerInfo', JSON.stringify(devInfo));
                     }
-                    console.log('Developer ID saved from login:', developer.developerId);
+                    console.log('Developer ID saved from login:', getDeveloperId());
                 }
                 
                 // Hide login modal
@@ -5519,9 +5556,15 @@
                     localStorage.setItem('developerToken', tokens.idToken);
                     localStorage.setItem('refreshToken', tokens.refreshToken);
                     
-                    if (developer && developer.developerId) {
-                        localStorage.setItem('developerId', developer.developerId);
-                        localStorage.setItem('developerInfo', JSON.stringify(developer));
+                    // Sync developer ID from token
+                    syncDeveloperIdFromToken();
+                    
+                    if (developer) {
+                        const devInfo = {
+                            ...developer,
+                            developerId: getDeveloperId() // Always use token value
+                        };
+                        localStorage.setItem('developerInfo', JSON.stringify(devInfo));
                     }
                     
                     // Hide modal and refresh
@@ -5717,7 +5760,7 @@
                 console.log('Initial token check:', token ? 'Token found' : 'No token');
                 
                 if (token) {
-                    const devId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                    const devId = getDeveloperId();
                     console.log('Developer ID found:', devId);
                 }
             }, 100);
@@ -5765,79 +5808,14 @@
                     return;
                 }
                 
-                // 1. First check auth service
-                if (typeof auth !== 'undefined' && auth.developerInfo && auth.developerInfo.developerId) {
-                    setDeveloperId(auth.developerInfo.developerId);
-                    return;
-                }
-                
-                // 2. Check localStorage for cached developer info
-                const storedInfo = localStorage.getItem('developerInfo');
-                if (storedInfo) {
-                    try {
-                        const developerInfo = JSON.parse(storedInfo);
-                        if (developerInfo.developerId) {
-                            setDeveloperId(developerInfo.developerId);
-                            // Update auth service if available
-                            if (typeof auth !== 'undefined') {
-                                auth.developerInfo = developerInfo;
-                            }
-                            return;
-                        }
-                    } catch (e) {
-                        console.error('Error parsing stored developer info:', e);
-                    }
-                }
-                
-                // 3. Generate from token as fallback
-                try {
-                    const payload = JSON.parse(atob(token.split('.')[1]));
-                    const email = payload.email || payload['cognito:username'] || '';
-                    if (email) {
-                        const username = email.split('@')[0];
-                        const devId = 'dev_' + username.substring(0, 6).padEnd(6, '0').replace(/[^a-zA-Z0-9]/g, '0');
-                        
-                        // Create and save developer info
-                        const developerInfo = {
-                            developerId: devId,
-                            companyName: username,
-                            email: email,
-                            username: username,
-                            userType: 'developer'
-                        };
-                        
-                        localStorage.setItem('developerInfo', JSON.stringify(developerInfo));
-                        setDeveloperId(devId);
-                        
-                        // Update auth service
-                        if (typeof auth !== 'undefined') {
-                            auth.developerInfo = developerInfo;
-                        }
-                        return;
-                    }
-                } catch (e) {
-                    console.error('Error extracting from token:', e);
-                }
-                
-                // 4. Show loading and try async load
-                developerIdField.value = '';
-                developerIdField.placeholder = 'Loading...';
-                
-                if (typeof auth !== 'undefined' && auth.isAuthenticated()) {
-                    auth.loadDeveloperProfile().then(() => {
-                        if (auth.developerInfo && auth.developerInfo.developerId) {
-                            setDeveloperId(auth.developerInfo.developerId);
-                            // Also update dashboard
-                            auth.updateDashboardInfo();
-                        } else {
-                            developerIdField.placeholder = 'Unable to load ID';
-                        }
-                    }).catch(err => {
-                        console.error('Failed to load developer profile:', err);
-                        developerIdField.placeholder = 'Error loading ID';
-                    });
+                // Always get developer ID from JWT token
+                const developerId = getDeveloperId();
+                if (developerId) {
+                    setDeveloperId(developerId);
                 } else {
-                    developerIdField.placeholder = 'Not logged in';
+                    developerIdField.value = '';
+                    developerIdField.placeholder = 'No developer ID found in token';
+                    console.error('No developer ID found in JWT token');
                 }
             }
             
@@ -5869,6 +5847,20 @@
             const editStatusToggle = document.getElementById('editGameStatus');
             if (editStatusToggle) {
                 editStatusToggle.addEventListener('change', updateEditStatusText);
+            }
+            
+            // Check if we have a token and sync developer ID
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (token) {
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const exp = payload.exp * 1000;
+                    if (exp > Date.now()) {
+                        syncDeveloperIdFromToken();
+                    }
+                } catch (e) {
+                    console.error('Token validation error:', e);
+                }
             }
         });
         
@@ -5927,38 +5919,12 @@
                 const data = await response.json();
                 const allGames = data.games || [];
                 
-                // Get developer ID from multiple sources
-                let developerId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+                // Get developer ID from JWT token
+                let developerId = getDeveloperId();
                 
-                // Try to get from auth service if not in storage
-                if (!developerId && typeof auth !== 'undefined') {
-                    if (auth.developerInfo && auth.developerInfo.developerId) {
-                        developerId = auth.developerInfo.developerId;
-                        localStorage.setItem('developerId', developerId);
-                    } else if (auth.refreshFromStorage) {
-                        // Try refreshing auth from storage
-                        auth.refreshFromStorage();
-                        if (auth.developerInfo && auth.developerInfo.developerId) {
-                            developerId = auth.developerInfo.developerId;
-                            localStorage.setItem('developerId', developerId);
-                        }
-                    }
-                }
-                
-                // Last resort - try to get from developer info in storage
+                // If no developer ID from token, we can't filter games
                 if (!developerId) {
-                    const devInfo = localStorage.getItem('developerInfo');
-                    if (devInfo) {
-                        try {
-                            const parsed = JSON.parse(devInfo);
-                            if (parsed.developerId) {
-                                developerId = parsed.developerId;
-                                localStorage.setItem('developerId', developerId);
-                            }
-                        } catch (e) {
-                            console.error('Error parsing developer info:', e);
-                        }
-                    }
+                    console.warn('No developer ID found in JWT token');
                 }
                 
                 if (!developerId) {
