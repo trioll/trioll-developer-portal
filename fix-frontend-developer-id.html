@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Frontend Developer ID</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        h1 { color: #10b981; }
+        h2 { color: #3b82f6; margin-top: 30px; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        button:hover { background: #2563eb; }
+        button.success { background: #10b981; }
+        button.success:hover { background: #059669; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #1a1a1a;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+            border: 1px solid #374151;
+        }
+        .info { color: #60a5fa; }
+        .success { color: #34d399; }
+        .error { color: #f87171; }
+        .warning { color: #fbbf24; }
+        .fix-section {
+            background: #1f2937;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #374151;
+        }
+        .code {
+            background: #000;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix Frontend Developer ID Issue</h1>
+        <p>This page fixes the developer ID mismatch between your JWT token and localStorage</p>
+        
+        <div class="fix-section">
+            <h2>Current Status</h2>
+            <button onclick="checkCurrentStatus()">Check Current Status</button>
+            <div id="statusResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="fix-section">
+            <h2>Quick Fix</h2>
+            <p>This will update your localStorage to use the correct developer ID from your JWT token</p>
+            <button onclick="fixDeveloperId()" class="success">Fix Developer ID</button>
+            <button onclick="clearAndRelogin()" class="danger">Clear All & Re-login</button>
+        </div>
+        
+        <div class="fix-section">
+            <h2>Manual Fix (for developers)</h2>
+            <p>Run this code in your browser console:</p>
+            <div class="code" id="manualCode">
+// Extract developer ID from JWT token
+function getDeveloperIdFromToken() {
+    const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+    if (!token) return null;
+    
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload['custom:developer_id'] || payload.preferred_username || null;
+    } catch (e) {
+        console.error('Error parsing token:', e);
+        return null;
+    }
+}
+
+// Fix the developer ID
+const correctDevId = getDeveloperIdFromToken();
+if (correctDevId) {
+    localStorage.setItem('developerId', correctDevId);
+    sessionStorage.setItem('developerId', correctDevId);
+    console.log('✅ Developer ID fixed:', correctDevId);
+} else {
+    console.error('❌ Could not extract developer ID from token');
+}
+</div>
+            <button onclick="copyCode()">Copy Code</button>
+        </div>
+        
+        <div class="fix-section">
+            <h2>Test After Fix</h2>
+            <button onclick="testMyGames()">Test /developers/games</button>
+            <button onclick="window.location.href='/'" class="success">Go to Dashboard</button>
+        </div>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const result = document.getElementById('result');
+            result.style.display = 'block';
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${timestamp}] ${message}`;
+            result.appendChild(div);
+            result.scrollTop = result.scrollHeight;
+        }
+        
+        function clearResult() {
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('result').style.display = 'none';
+        }
+        
+        function getDeveloperIdFromToken() {
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (!token) return null;
+            
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload['custom:developer_id'] || payload.preferred_username || null;
+            } catch (e) {
+                console.error('Error parsing token:', e);
+                return null;
+            }
+        }
+        
+        function checkCurrentStatus() {
+            const statusDiv = document.getElementById('statusResult');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '';
+            
+            // Get all relevant values
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            const storedDevId = localStorage.getItem('developerId') || sessionStorage.getItem('developerId');
+            const tokenDevId = getDeveloperIdFromToken();
+            
+            let html = '<h3>Current Status:</h3>';
+            
+            if (!token) {
+                html += '<div class="error">❌ No authentication token found</div>';
+            } else {
+                html += '<div class="success">✅ Token found</div>';
+                
+                // Check token expiry
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const exp = new Date(payload.exp * 1000);
+                    const now = new Date();
+                    
+                    if (exp < now) {
+                        html += '<div class="error">❌ Token is expired</div>';
+                    } else {
+                        html += '<div class="success">✅ Token is valid</div>';
+                    }
+                    
+                    html += `<div class="info">Email: ${payload.email}</div>`;
+                    html += `<div class="info">Company: ${payload['custom:company_name'] || 'Not found'}</div>`;
+                } catch (e) {
+                    html += '<div class="error">❌ Error parsing token</div>';
+                }
+            }
+            
+            html += '<h4>Developer ID Status:</h4>';
+            html += `<div class="info">Developer ID in JWT Token: <strong>${tokenDevId || 'NOT FOUND'}</strong></div>`;
+            html += `<div class="info">Developer ID in localStorage: <strong>${storedDevId || 'NOT FOUND'}</strong></div>`;
+            
+            if (tokenDevId && storedDevId) {
+                if (tokenDevId === storedDevId) {
+                    html += '<div class="success">✅ Developer IDs match!</div>';
+                } else {
+                    html += '<div class="error">❌ Developer ID mismatch!</div>';
+                    html += '<div class="warning">This is why your games aren\'t showing in "My Games"</div>';
+                    html += '<div class="warning">Click "Fix Developer ID" to resolve this</div>';
+                }
+            }
+            
+            // Check what the API thinks
+            if (token && tokenDevId) {
+                html += '<h4>Checking API...</h4>';
+                checkAPIStatus(token, tokenDevId, storedDevId);
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        async function checkAPIStatus(token, tokenDevId, storedDevId) {
+            const statusDiv = document.getElementById('statusResult');
+            
+            try {
+                const response = await fetch('https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod/developers/games', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                let html = statusDiv.innerHTML;
+                html += '<h4>API Response:</h4>';
+                
+                if (response.ok && data.success) {
+                    html += `<div class="success">✅ API returned ${data.games?.length || 0} games</div>`;
+                    
+                    // Show what developer ID the API is using
+                    if (data.games && data.games.length > 0) {
+                        const apiDevId = data.games[0].developerId;
+                        html += `<div class="info">API is querying for developer ID: <strong>${apiDevId}</strong></div>`;
+                    }
+                } else {
+                    html += `<div class="error">❌ API error: ${data.message || 'Unknown error'}</div>`;
+                }
+                
+                statusDiv.innerHTML = html;
+                
+            } catch (e) {
+                statusDiv.innerHTML += `<div class="error">❌ API request failed: ${e.message}</div>`;
+            }
+        }
+        
+        function fixDeveloperId() {
+            clearResult();
+            log('🔧 Fixing developer ID...', 'info');
+            
+            const correctDevId = getDeveloperIdFromToken();
+            
+            if (!correctDevId) {
+                log('❌ Could not extract developer ID from token', 'error');
+                log('You may need to log out and log back in', 'warning');
+                return;
+            }
+            
+            const oldDevId = localStorage.getItem('developerId');
+            
+            log(`Current developer ID in localStorage: ${oldDevId || 'NOT SET'}`, 'info');
+            log(`Correct developer ID from token: ${correctDevId}`, 'info');
+            
+            // Update both storages
+            localStorage.setItem('developerId', correctDevId);
+            sessionStorage.setItem('developerId', correctDevId);
+            
+            log('✅ Developer ID updated in localStorage and sessionStorage', 'success');
+            
+            // Also update developerInfo if it exists
+            const devInfoStr = localStorage.getItem('developerInfo');
+            if (devInfoStr) {
+                try {
+                    const devInfo = JSON.parse(devInfoStr);
+                    devInfo.developerId = correctDevId;
+                    localStorage.setItem('developerInfo', JSON.stringify(devInfo));
+                    log('✅ Updated developerInfo object', 'success');
+                } catch (e) {
+                    log('⚠️ Could not update developerInfo object', 'warning');
+                }
+            }
+            
+            log('\n🎉 Fix complete! Your games should now appear in "My Games"', 'success');
+            log('Click "Test /developers/games" to verify', 'info');
+        }
+        
+        function clearAndRelogin() {
+            if (confirm('This will clear all your session data and redirect to login. Continue?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = '/';
+            }
+        }
+        
+        function copyCode() {
+            const code = document.getElementById('manualCode').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Code copied to clipboard!');
+            });
+        }
+        
+        async function testMyGames() {
+            clearResult();
+            log('🧪 Testing /developers/games endpoint...', 'info');
+            
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            const devId = localStorage.getItem('developerId');
+            
+            if (!token) {
+                log('❌ No token found', 'error');
+                return;
+            }
+            
+            log(`Using developer ID: ${devId}`, 'info');
+            
+            try {
+                const response = await fetch('https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod/developers/games', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    log(`✅ Success! Found ${data.games?.length || 0} games`, 'success');
+                    
+                    if (data.games && data.games.length > 0) {
+                        log('\nYour games:', 'info');
+                        data.games.forEach((game, i) => {
+                            log(`${i+1}. "${game.name || game.title}" (${game.gameId})`, 'success');
+                        });
+                    } else {
+                        log('No games found. Make sure your games have the correct developer ID.', 'warning');
+                    }
+                } else {
+                    log(`❌ API error: ${data.message || 'Unknown error'}`, 'error');
+                }
+                
+            } catch (e) {
+                log(`❌ Request failed: ${e.message}`, 'error');
+            }
+        }
+        
+        // Auto-check on load
+        window.onload = () => {
+            setTimeout(checkCurrentStatus, 500);
+        };
+    </script>
+</body>
+</html>

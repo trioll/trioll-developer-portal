@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Token Payload</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        pre {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Token Payload Decoder</h1>
+    <div id="output"></div>
+    
+    <script>
+        function decodeToken() {
+            const token = sessionStorage.getItem('developerToken') || 
+                         localStorage.getItem('developerToken');
+            
+            if (!token) {
+                document.getElementById('output').innerHTML = '<p>No token found!</p>';
+                return;
+            }
+            
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    document.getElementById('output').innerHTML = '<p>Invalid token format!</p>';
+                    return;
+                }
+                
+                const payload = JSON.parse(atob(parts[1]));
+                
+                document.getElementById('output').innerHTML = `
+                    <h2>Token Payload:</h2>
+                    <pre>${JSON.stringify(payload, null, 2)}</pre>
+                    
+                    <h2>Key Fields:</h2>
+                    <ul>
+                        <li>Sub (User ID): ${payload.sub || 'Not found'}</li>
+                        <li>Email: ${payload.email || 'Not found'}</li>
+                        <li>Developer ID: ${payload['custom:developer_id'] || 'NOT FOUND'}</li>
+                        <li>User Type: ${payload['custom:user_type'] || 'NOT FOUND'}</li>
+                        <li>Company Name: ${payload['custom:company_name'] || 'NOT FOUND'}</li>
+                    </ul>
+                    
+                    <h2>Custom Attributes:</h2>
+                    <pre>${JSON.stringify(Object.keys(payload).filter(k => k.startsWith('custom:')), null, 2)}</pre>
+                `;
+            } catch (e) {
+                document.getElementById('output').innerHTML = `<p>Error decoding token: ${e.message}</p>`;
+            }
+        }
+        
+        // Run on page load
+        decodeToken();
+    </script>
+</body>
+</html>

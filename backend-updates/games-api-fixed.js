@@ -35,9 +35,10 @@ const getDeveloperFromToken = (authHeader) => {
     return {
       userId: payload.sub,
       email: payload.email,
-      developerId: payload['custom:developer_id'] || null,
-      companyName: payload['custom:company_name'] || null,
-      userType: payload['custom:user_type'] || 'player',
+      // Support both custom attributes (currently in use) and standard attributes (future)
+      developerId: payload['custom:developer_id'] || payload.preferred_username || null,
+      companyName: payload['custom:company_name'] || payload.website || null,
+      userType: payload['custom:user_type'] || payload.profile || 'player',
       groups: payload['cognito:groups'] || []
     };
   } catch (error) {
@@ -294,13 +295,14 @@ async function handleCreateGame(body, authHeader) {
     
     // Prepare the item for DynamoDB with developer info
     const item = {
-      id: gameData.gameId,
+      gameId: gameData.gameId,  // Changed from 'id' to 'gameId' to match table schema
+      version: '1.0.0',  // Use version 1.0.0 for actual game data
       title: gameData.name,
       description: gameData.description,
       category: gameData.category,
       genre: gameData.category,
-      developerName: gameData.developer,
-      developerId: developer.developerId, // From JWT token
+      developerName: developer.companyName || gameData.developer, // Prefer JWT token value
+      developerId: developer.developerId, // ALWAYS from JWT token, ignore frontend value
       developerEmail: developer.email, // From JWT token
       uploadedBy: 'developer', // Track upload source
       deviceOrientation: gameData.deviceOrientation,
@@ -472,16 +474,20 @@ async function handleGamesByCategory(category) {
 
 async function handleGetGameById(gameId) {
   try {
-    const params = {
+    // Query to get the latest version of the game
+    const queryParams = {
       TableName: GAMES_TABLE,
-      Key: {
-        id: gameId // Use 'id' as the partition key
-      }
+      KeyConditionExpression: 'gameId = :gameId',
+      ExpressionAttributeValues: {
+        ':gameId': gameId
+      },
+      ScanIndexForward: false,  // Get latest version first
+      Limit: 1
     };
     
-    const result = await dynamodb.send(new GetCommand(params));
+    const result = await dynamodb.send(new QueryCommand(queryParams));
     
-    if (!result.Item) {
+    if (!result.Items || result.Items.length === 0) {
       return {
         statusCode: 404,
         headers: getCorsHeaders(''),
@@ -492,7 +498,7 @@ async function handleGetGameById(gameId) {
     return {
       statusCode: 200,
       headers: getCorsHeaders(''),
-      body: JSON.stringify(transformGame(result.Item))
+      body: JSON.stringify(transformGame(result.Items[0]))
     };
   } catch (error) {
     console.error('Error fetching game:', error);
@@ -525,7 +531,7 @@ function transformGame(item) {
   }
   
   return {
-    id: item.id,
+    id: item.gameId || item.id,  // Support both gameId and id fields
     title: item.title || 'Untitled Game',
     developerName: item.developerName || item.developer || 'Unknown Developer',
     developerId: item.developerId || null, // Include developer ID

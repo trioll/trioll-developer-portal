@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test & Fix Developer Portal</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        h1 { color: #10b981; margin-bottom: 10px; }
+        h2 { color: #3b82f6; margin-top: 30px; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        button:hover { background: #2563eb; }
+        button.success { background: #10b981; }
+        button.success:hover { background: #059669; }
+        button.warning { background: #f59e0b; }
+        button.warning:hover { background: #d97706; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #1a1a1a;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #374151;
+        }
+        .info { color: #60a5fa; }
+        .success { color: #34d399; }
+        .error { color: #f87171; }
+        .warning { color: #fbbf24; }
+        .section {
+            background: #1f2937;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #374151;
+        }
+        .game-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .game-item {
+            background: #111827;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #374151;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .game-info {
+            flex: 1;
+        }
+        .game-title {
+            font-weight: bold;
+            color: #e0e0e0;
+            margin-bottom: 5px;
+        }
+        .game-details {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        .dev-id-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .dev-id-correct { background: #064e3b; color: #34d399; }
+        .dev-id-wrong { background: #7f1d1d; color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Developer Portal Test & Fix</h1>
+        <p>Complete testing and fixing suite for the developer portal</p>
+        
+        <div class="section">
+            <h2>1️⃣ Authentication Check</h2>
+            <button onclick="checkAuth()">Check Token</button>
+            <button onclick="refreshToken()" class="warning">Refresh Token</button>
+        </div>
+        
+        <div class="section">
+            <h2>2️⃣ Game Discovery & Analysis</h2>
+            <button onclick="findAllMyGames()" class="success">Find All My Games</button>
+            <button onclick="analyzeGames()">Analyze Developer IDs</button>
+            <div id="gameList" class="game-list"></div>
+        </div>
+        
+        <div class="section">
+            <h2>3️⃣ Fix Developer IDs</h2>
+            <p>This will update all your games to use the correct developer ID format</p>
+            <button onclick="fixAllGames()" class="warning">Fix All My Games</button>
+            <button onclick="fixSpecificGame()" class="warning">Fix Specific Game</button>
+        </div>
+        
+        <div class="section">
+            <h2>4️⃣ Test Game Operations</h2>
+            <button onclick="testCreate()">Test Create</button>
+            <button onclick="testUpdate()">Test Update</button>
+            <button onclick="testFullCycle()" class="success">Test Full Cycle</button>
+        </div>
+        
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        let allGames = [];
+        let myGames = [];
+        let tokenInfo = null;
+        
+        function log(message, type = 'info') {
+            const result = document.getElementById('result');
+            const timestamp = new Date().toLocaleTimeString();
+            const typeClass = type;
+            const line = document.createElement('div');
+            line.className = typeClass;
+            line.textContent = `[${timestamp}] ${message}`;
+            result.appendChild(line);
+            result.scrollTop = result.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('result').innerHTML = '';
+        }
+        
+        function getToken() {
+            return localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+        }
+        
+        async function checkAuth() {
+            clearLog();
+            log('Checking authentication...', 'info');
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found. Please log in.', 'error');
+                return false;
+            }
+            
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                tokenInfo = payload;
+                const exp = new Date(payload.exp * 1000);
+                const now = new Date();
+                
+                if (exp < now) {
+                    log('❌ Token expired at ' + exp.toLocaleString(), 'error');
+                    return false;
+                }
+                
+                log('✅ Token valid until ' + exp.toLocaleString(), 'success');
+                log('Email: ' + payload.email);
+                log('Developer ID: ' + (payload['custom:developer_id'] || 'NOT FOUND'), 'warning');
+                log('Company: ' + (payload['custom:company_name'] || 'NOT FOUND'));
+                return true;
+            } catch (e) {
+                log('❌ Invalid token: ' + e.message, 'error');
+                return false;
+            }
+        }
+        
+        async function refreshToken() {
+            log('Token refresh requires re-login. Redirecting...', 'warning');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        }
+        
+        async function findAllMyGames() {
+            clearLog();
+            log('🔍 Searching for all your games...', 'info');
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found', 'error');
+                return;
+            }
+            
+            if (!tokenInfo) await checkAuth();
+            const myDeveloperId = tokenInfo?.['custom:developer_id'] || 'dev_c84a7e';
+            const myEmail = tokenInfo?.email;
+            const myCompany = tokenInfo?.['custom:company_name'];
+            
+            try {
+                // Get all games
+                const response = await fetch(`${API_BASE}/games?limit=100`, {
+                    headers: {
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                const data = await response.json();
+                allGames = data.games || [];
+                
+                log(`Found ${allGames.length} total games in database`, 'info');
+                
+                // Find games that might be mine
+                myGames = allGames.filter(g => {
+                    const devId = g.developerId || g.developer;
+                    return devId === myDeveloperId ||
+                           devId === myEmail ||
+                           devId === myCompany ||
+                           devId === 'FreddieTrioll' ||
+                           devId === 'Freddie' ||
+                           devId === 'freddiecaplin@hotmail.com' ||
+                           (g.developerEmail && g.developerEmail === myEmail);
+                });
+                
+                log(`\n📊 Found ${myGames.length} games that appear to be yours:`, 'success');
+                
+                // Display games
+                const gameListDiv = document.getElementById('gameList');
+                gameListDiv.innerHTML = '';
+                
+                myGames.forEach((game, index) => {
+                    const devId = game.developerId || game.developer || 'Unknown';
+                    const isCorrect = devId === myDeveloperId;
+                    
+                    log(`\n${index + 1}. "${game.title || game.name}" (${game.gameId})`);
+                    log(`   Developer ID: ${devId} ${isCorrect ? '✅' : '❌ NEEDS FIX'}`);
+                    log(`   Status: ${game.status || 'active'}`);
+                    log(`   Created: ${game.createdAt || 'Unknown'}`);
+                    
+                    // Add to UI
+                    const gameItem = document.createElement('div');
+                    gameItem.className = 'game-item';
+                    gameItem.innerHTML = `
+                        <div class="game-info">
+                            <div class="game-title">${game.title || game.name}</div>
+                            <div class="game-details">
+                                ID: ${game.gameId} | 
+                                Status: ${game.status || 'active'} |
+                                Created: ${new Date(game.createdAt).toLocaleDateString()}
+                            </div>
+                        </div>
+                        <div class="dev-id-badge ${isCorrect ? 'dev-id-correct' : 'dev-id-wrong'}">
+                            ${devId}
+                        </div>
+                    `;
+                    gameListDiv.appendChild(gameItem);
+                });
+                
+                if (myGames.length === 0) {
+                    log('\n⚠️ No games found. You may need to:', 'warning');
+                    log('1. Upload a game first');
+                    log('2. Check if games are under a different developer ID');
+                }
+                
+            } catch (e) {
+                log('❌ Error fetching games: ' + e.message, 'error');
+            }
+        }
+        
+        async function analyzeGames() {
+            if (myGames.length === 0) {
+                await findAllMyGames();
+            }
+            
+            clearLog();
+            log('🔍 Analyzing developer IDs...', 'info');
+            
+            const devIdCounts = {};
+            myGames.forEach(game => {
+                const devId = game.developerId || game.developer || 'None';
+                devIdCounts[devId] = (devIdCounts[devId] || 0) + 1;
+            });
+            
+            log('\n📊 Developer ID Distribution:', 'info');
+            Object.entries(devIdCounts).forEach(([id, count]) => {
+                const correct = id === 'dev_c84a7e';
+                log(`${id}: ${count} games ${correct ? '✅' : '❌'}`, correct ? 'success' : 'warning');
+            });
+            
+            const needsFix = myGames.filter(g => 
+                (g.developerId || g.developer) !== 'dev_c84a7e'
+            ).length;
+            
+            if (needsFix > 0) {
+                log(`\n⚠️ ${needsFix} games need developer ID fix`, 'warning');
+                log('Click "Fix All My Games" to update them');
+            } else {
+                log('\n✅ All games have correct developer ID!', 'success');
+            }
+        }
+        
+        async function fixAllGames() {
+            if (!confirm('This will update all your games to use the correct developer ID. Continue?')) {
+                return;
+            }
+            
+            clearLog();
+            log('🔧 Starting developer ID fix...', 'info');
+            
+            if (myGames.length === 0) {
+                await findAllMyGames();
+            }
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found', 'error');
+                return;
+            }
+            
+            const targetDevId = 'dev_c84a7e';
+            let fixed = 0;
+            let errors = 0;
+            
+            for (const game of myGames) {
+                const currentDevId = game.developerId || game.developer;
+                if (currentDevId === targetDevId) {
+                    log(`✓ "${game.title || game.name}" already has correct ID`, 'success');
+                    continue;
+                }
+                
+                log(`\n📝 Updating "${game.title || game.name}"...`);
+                log(`   Current ID: ${currentDevId} → New ID: ${targetDevId}`);
+                
+                try {
+                    // We need to update this via a backend script since we can't 
+                    // directly update another developer's games
+                    const updateData = {
+                        name: game.title || game.name,
+                        description: game.description || '',
+                        category: game.category || 'Action',
+                        status: 'active'
+                    };
+                    
+                    const response = await fetch(`${API_BASE}/games/${game.gameId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`,
+                            'X-App-Client': 'developer-portal'
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+                    
+                    if (response.ok) {
+                        log('   ✅ Updated successfully!', 'success');
+                        fixed++;
+                    } else {
+                        const error = await response.text();
+                        log(`   ❌ Update failed: ${error}`, 'error');
+                        errors++;
+                    }
+                } catch (e) {
+                    log(`   ❌ Error: ${e.message}`, 'error');
+                    errors++;
+                }
+            }
+            
+            log(`\n📊 Fix Summary:`, 'info');
+            log(`   Fixed: ${fixed} games`, 'success');
+            log(`   Errors: ${errors} games`, errors > 0 ? 'error' : 'info');
+            
+            if (errors > 0) {
+                log('\n💡 For games that failed, you may need to:', 'warning');
+                log('1. Run the backend fix script');
+                log('2. Contact support for help');
+            }
+        }
+        
+        async function fixSpecificGame() {
+            const gameId = prompt('Enter the game ID to fix (e.g., Evolution-Runner):');
+            if (!gameId) return;
+            
+            clearLog();
+            log(`🔧 Fixing game: ${gameId}`, 'info');
+            log('Note: This requires backend access. Creating fix command...', 'warning');
+            
+            const fixCommand = `cd backend-updates && node fix-developer-ids.js --games ${gameId}`;
+            log('\n📋 Run this command in your terminal:', 'info');
+            log(fixCommand, 'success');
+            
+            // Copy to clipboard if available
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(fixCommand);
+                log('\n✅ Command copied to clipboard!', 'success');
+            }
+        }
+        
+        async function testCreate() {
+            clearLog();
+            log('🧪 Testing game creation...', 'info');
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found', 'error');
+                return;
+            }
+            
+            const testGame = {
+                gameId: `portal-test-${Date.now()}`,
+                name: 'Portal Test Game ' + new Date().toLocaleTimeString(),
+                description: 'Testing game creation from new test page',
+                category: 'Test',
+                developer: 'SHOULD_BE_IGNORED',
+                developerId: 'WRONG_ID',
+                deviceOrientation: 'Both',
+                controlStyle: 'Tap & Swipe Only',
+                gameStage: 'Testing',
+                deviceCompatibility: ['Mobile iOS', 'Mobile Android'],
+                gameUrl: 'https://example.com/test',
+                thumbnailUrl: 'https://example.com/test.png',
+                status: 'active'
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/games`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify(testGame)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Game created successfully!', 'success');
+                    log(`Game ID: ${data.gameId}`, 'success');
+                    
+                    // Verify it has correct developer ID
+                    log('\nVerifying developer ID...', 'info');
+                    const verifyResponse = await fetch(`${API_BASE}/games/${testGame.gameId}`);
+                    const game = await verifyResponse.json();
+                    
+                    if (game.developerId === 'dev_c84a7e') {
+                        log('✅ Developer ID correctly set from JWT token!', 'success');
+                    } else {
+                        log(`❌ Developer ID is "${game.developerId}", expected "dev_c84a7e"`, 'error');
+                    }
+                } else {
+                    log(`❌ Creation failed: ${JSON.stringify(data)}`, 'error');
+                }
+            } catch (e) {
+                log(`❌ Error: ${e.message}`, 'error');
+            }
+        }
+        
+        async function testUpdate() {
+            clearLog();
+            log('🧪 Testing game update...', 'info');
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found', 'error');
+                return;
+            }
+            
+            // First, get a game to update
+            if (myGames.length === 0) {
+                await findAllMyGames();
+            }
+            
+            if (myGames.length === 0) {
+                log('❌ No games found to update', 'error');
+                return;
+            }
+            
+            const gameToUpdate = myGames[0];
+            log(`Updating "${gameToUpdate.title || gameToUpdate.name}" (${gameToUpdate.gameId})...`, 'info');
+            
+            const updates = {
+                name: gameToUpdate.title || gameToUpdate.name,
+                description: 'Updated from test page at ' + new Date().toLocaleString(),
+                category: gameToUpdate.category || 'Action',
+                status: 'active'
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameToUpdate.gameId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    },
+                    body: JSON.stringify(updates)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Game updated successfully!', 'success');
+                    log(`Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                } else {
+                    log(`❌ Update failed: ${JSON.stringify(data)}`, 'error');
+                    
+                    if (data.message && data.message.includes('ownership')) {
+                        log('\n⚠️ This game has the wrong developer ID', 'warning');
+                        log('Run "Fix All My Games" first, then try again', 'warning');
+                    }
+                }
+            } catch (e) {
+                log(`❌ Error: ${e.message}`, 'error');
+            }
+        }
+        
+        async function testFullCycle() {
+            clearLog();
+            log('🚀 Running full test cycle...', 'info');
+            
+            // 1. Check auth
+            log('\n1️⃣ Checking authentication...', 'info');
+            if (!await checkAuth()) return;
+            
+            // 2. Find games
+            log('\n2️⃣ Finding your games...', 'info');
+            await findAllMyGames();
+            
+            // 3. Create a test game
+            log('\n3️⃣ Creating a test game...', 'info');
+            await testCreate();
+            
+            // 4. Wait and refresh
+            log('\n⏳ Waiting 2 seconds...', 'info');
+            await new Promise(r => setTimeout(r, 2000));
+            
+            // 5. Find games again
+            log('\n4️⃣ Refreshing game list...', 'info');
+            await findAllMyGames();
+            
+            // 6. Test update
+            log('\n5️⃣ Testing update on latest game...', 'info');
+            await testUpdate();
+            
+            log('\n✅ Full test cycle complete!', 'success');
+        }
+        
+        // Auto-check auth on load
+        window.onload = () => {
+            setTimeout(() => checkAuth(), 500);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug My Games</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 12px;
+        }
+        h1 { color: #10b981; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        .success { color: #34d399; }
+        .error { color: #f87171; }
+        .warning { color: #fbbf24; }
+        .info { color: #60a5fa; }
+        .json { 
+            background: #111; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin: 10px 0;
+            border: 1px solid #374151;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #374151;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background: #374151;
+            color: #e0e0e0;
+        }
+        tr:nth-child(even) {
+            background: #1f2937;
+        }
+        .highlight { background: #065f46 !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug My Games Tab</h1>
+        <p>This page debugs why games aren't showing in the "My Games" tab</p>
+        
+        <button onclick="runFullDebug()">🚀 Run Full Debug</button>
+        <button onclick="checkToken()">1. Check Token</button>
+        <button onclick="testDeveloperEndpoint()">2. Test /developers/games</button>
+        <button onclick="testAllGames()">3. Test /games</button>
+        <button onclick="compareResults()">4. Compare Results</button>
+        <button onclick="fixAndTest()">5. Fix & Re-test</button>
+        
+        <div id="result" class="result"></div>
+        <div id="gameTable"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        let tokenData = null;
+        let developerGames = [];
+        let allGames = [];
+        let myActualGames = [];
+        
+        function log(message, type = 'info') {
+            const result = document.getElementById('result');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${timestamp}] ${message}`;
+            result.appendChild(div);
+            result.scrollTop = result.scrollHeight;
+        }
+        
+        function logJSON(obj, title) {
+            const result = document.getElementById('result');
+            const container = document.createElement('div');
+            container.innerHTML = `<div class="info">${title}:</div><div class="json">${JSON.stringify(obj, null, 2)}</div>`;
+            result.appendChild(container);
+        }
+        
+        function clearLog() {
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('gameTable').innerHTML = '';
+        }
+        
+        function getToken() {
+            return localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+        }
+        
+        async function checkToken() {
+            clearLog();
+            log('🔐 Checking authentication token...', 'info');
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found!', 'error');
+                return false;
+            }
+            
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                tokenData = payload;
+                
+                log('✅ Token found and decoded', 'success');
+                log(`Email: ${payload.email}`);
+                log(`Developer ID: ${payload['custom:developer_id'] || 'NOT FOUND'}`, payload['custom:developer_id'] ? 'success' : 'error');
+                log(`Company: ${payload['custom:company_name'] || 'NOT FOUND'}`);
+                log(`User Type: ${payload['custom:user_type'] || 'NOT FOUND'}`);
+                
+                const exp = new Date(payload.exp * 1000);
+                const now = new Date();
+                if (exp < now) {
+                    log(`❌ Token expired at ${exp.toLocaleString()}`, 'error');
+                    return false;
+                } else {
+                    log(`✅ Token valid until ${exp.toLocaleString()}`, 'success');
+                }
+                
+                logJSON(payload, 'Full Token Payload');
+                return true;
+            } catch (e) {
+                log(`❌ Error decoding token: ${e.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testDeveloperEndpoint() {
+            clearLog();
+            log('🎮 Testing /developers/games endpoint...', 'info');
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found', 'error');
+                return;
+            }
+            
+            try {
+                log('Sending request to /developers/games...', 'info');
+                const response = await fetch(`${API_BASE}/developers/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                log(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                const data = await response.json();
+                
+                if (data.success) {
+                    developerGames = data.games || [];
+                    log(`✅ Success! Found ${developerGames.length} games`, 'success');
+                    
+                    if (developerGames.length > 0) {
+                        log('\n📋 Games returned by /developers/games:', 'info');
+                        developerGames.forEach((game, i) => {
+                            log(`${i+1}. "${game.name || game.title}" (${game.gameId})`);
+                            log(`   Developer ID: ${game.developerId}`);
+                        });
+                    }
+                } else {
+                    log(`❌ API returned success: false`, 'error');
+                }
+                
+                logJSON(data, 'Full Response from /developers/games');
+                
+            } catch (e) {
+                log(`❌ Request failed: ${e.message}`, 'error');
+            }
+        }
+        
+        async function testAllGames() {
+            clearLog();
+            log('🎮 Testing /games endpoint (all games)...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/games?limit=100`, {
+                    headers: {
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                const data = await response.json();
+                allGames = data.games || [];
+                
+                log(`Found ${allGames.length} total games`, 'info');
+                
+                // Find games that should be mine
+                const myDevId = tokenData?.['custom:developer_id'] || 'dev_c84a7e';
+                myActualGames = allGames.filter(game => {
+                    const devId = game.developerId || game.developer;
+                    return devId === myDevId || 
+                           devId === 'FreddieTrioll' ||
+                           devId === 'freddiecaplin@hotmail.com' ||
+                           game.developerEmail === 'freddiecaplin@hotmail.com';
+                });
+                
+                log(`\n📊 Found ${myActualGames.length} games that should be yours:`, myActualGames.length > 0 ? 'success' : 'warning');
+                
+                myActualGames.forEach((game, i) => {
+                    const devId = game.developerId || game.developer;
+                    log(`${i+1}. "${game.title || game.name}" (${game.id || game.gameId})`);
+                    log(`   Developer ID: ${devId} ${devId === myDevId ? '✅' : '❌'}`);
+                    log(`   Version: ${game.version || 'N/A'}`);
+                });
+                
+            } catch (e) {
+                log(`❌ Error: ${e.message}`, 'error');
+            }
+        }
+        
+        async function compareResults() {
+            clearLog();
+            log('🔍 Comparing results...', 'info');
+            
+            if (!tokenData) await checkToken();
+            if (developerGames.length === 0) await testDeveloperEndpoint();
+            if (allGames.length === 0) await testAllGames();
+            
+            log('\n📊 COMPARISON RESULTS:', 'info');
+            log(`/developers/games returned: ${developerGames.length} games`);
+            log(`/games endpoint shows you should have: ${myActualGames.length} games`);
+            
+            const myDevId = tokenData?.['custom:developer_id'] || 'dev_c84a7e';
+            log(`\nYour developer ID: ${myDevId}`, 'info');
+            
+            // Create comparison table
+            const tableDiv = document.getElementById('gameTable');
+            let tableHTML = '<h3 style="color: #10b981;">Game Comparison Table</h3>';
+            tableHTML += '<table>';
+            tableHTML += '<tr><th>Game Title</th><th>Game ID</th><th>Developer ID</th><th>In /developers/games?</th><th>Status</th></tr>';
+            
+            myActualGames.forEach(game => {
+                const inDevEndpoint = developerGames.some(dg => 
+                    (dg.gameId === game.id || dg.gameId === game.gameId)
+                );
+                const devId = game.developerId || game.developer;
+                const correctDevId = devId === myDevId;
+                
+                tableHTML += `<tr class="${inDevEndpoint ? 'highlight' : ''}">`;
+                tableHTML += `<td>${game.title || game.name}</td>`;
+                tableHTML += `<td>${game.id || game.gameId}</td>`;
+                tableHTML += `<td style="color: ${correctDevId ? '#34d399' : '#f87171'}">${devId}</td>`;
+                tableHTML += `<td>${inDevEndpoint ? '✅ Yes' : '❌ No'}</td>`;
+                tableHTML += `<td>${game.status || 'active'}</td>`;
+                tableHTML += '</tr>';
+            });
+            
+            tableHTML += '</table>';
+            tableDiv.innerHTML = tableHTML;
+            
+            // Diagnose the issue
+            log('\n🔍 DIAGNOSIS:', 'warning');
+            
+            const wrongDevIds = myActualGames.filter(g => 
+                (g.developerId || g.developer) !== myDevId
+            );
+            
+            if (wrongDevIds.length > 0) {
+                log(`⚠️ ${wrongDevIds.length} games have incorrect developer IDs`, 'warning');
+                log('These games need to be fixed to appear in /developers/games', 'warning');
+            }
+            
+            // Check if the endpoint is filtering correctly
+            const correctDevIdGames = myActualGames.filter(g => 
+                (g.developerId || g.developer) === myDevId
+            );
+            
+            if (correctDevIdGames.length > developerGames.length) {
+                log(`❌ /developers/games is missing ${correctDevIdGames.length - developerGames.length} games with correct developer ID`, 'error');
+                log('This suggests an issue with the Lambda function filtering', 'error');
+            }
+        }
+        
+        async function fixAndTest() {
+            clearLog();
+            log('🔧 Attempting to fix games and re-test...', 'info');
+            
+            const token = getToken();
+            if (!token) {
+                log('❌ No token found', 'error');
+                return;
+            }
+            
+            // Find games that need fixing
+            const myDevId = tokenData?.['custom:developer_id'] || 'dev_c84a7e';
+            const needsFix = myActualGames.filter(g => 
+                (g.developerId || g.developer) !== myDevId
+            );
+            
+            if (needsFix.length === 0) {
+                log('✅ All games already have correct developer ID', 'success');
+                log('\n🔍 The issue must be with the /developers/games endpoint', 'warning');
+                
+                // Show the exact query the Lambda should be using
+                log('\nThe Lambda should be querying for:', 'info');
+                log(`developerId = "${myDevId}"`, 'info');
+                log('\nBut it might be:', 'warning');
+                log('1. Using the wrong field name');
+                log('2. Filtering incorrectly');
+                log('3. Missing the GSI query');
+                
+                return;
+            }
+            
+            log(`Found ${needsFix.length} games that need developer ID fix`, 'warning');
+            
+            // Create a command to fix them
+            const gameIds = needsFix.map(g => g.id || g.gameId).join(' ');
+            const fixCommand = `cd backend-updates && node fix-developer-ids.js --games ${gameIds}`;
+            
+            log('\n📋 Run this command to fix the games:', 'info');
+            log(fixCommand, 'success');
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(fixCommand);
+                log('\n✅ Command copied to clipboard!', 'success');
+            }
+        }
+        
+        async function runFullDebug() {
+            clearLog();
+            log('🚀 Running full debug sequence...', 'info');
+            
+            await checkToken();
+            await new Promise(r => setTimeout(r, 500));
+            
+            await testDeveloperEndpoint();
+            await new Promise(r => setTimeout(r, 500));
+            
+            await testAllGames();
+            await new Promise(r => setTimeout(r, 500));
+            
+            await compareResults();
+            
+            log('\n✅ Full debug complete!', 'success');
+        }
+        
+        // Auto-run on load
+        window.onload = () => {
+            setTimeout(runFullDebug, 500);
+        };
+    </script>
+</body>
+</html>
