@@ -3311,11 +3311,10 @@
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
-                // Always use the main games endpoint and filter client-side
-                // The developer-specific endpoint doesn't exist in the backend
-                console.log('Loading games from main endpoint and filtering by developerId:', developerId);
+                // Use the developer-specific endpoint that we just fixed
+                console.log('Loading games from developer endpoint for:', developerId);
                 
-                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/games`, {
                     method: 'GET',
                     headers: headers
                 });
@@ -3324,27 +3323,10 @@
                 
                 if (response.ok) {
                     const result = await response.json();
-                    const allItems = result.games || [];
-                    console.log(`Total items in system: ${allItems.length}`);
-                    
-                    // First filter out stats records (version: "v0")
-                    const actualGames = allItems.filter(game => {
-                        // Keep games that are NOT stats records
-                        // Stats records have version: "v0"
-                        return game.version !== 'v0';
-                    });
-                    console.log(`Actual games (excluding stats): ${actualGames.length}`);
-                    
-                    // Then filter games by developerId
-                    myGames = actualGames.filter(game => {
-                        const hasDevId = game.developerId && game.developerId === developerId;
-                        if (hasDevId) {
-                            console.log(`Found game: ${game.name || game.title} (${game.gameId})`);
-                        }
-                        return hasDevId;
-                    });
-                    
-                    console.log(`Games belonging to ${developerId}: ${myGames.length}`);
+                    // The /developers/games endpoint now returns pre-filtered games
+                    myGames = result.games || [];
+                    console.log(`Developer games returned: ${myGames.length}`);
+                    console.log('Developer ID from API:', result.developerId);
                 } else {
                     throw new Error(`Failed to load games: ${response.status} ${response.statusText}`);
                 }
