@@ -5464,13 +5464,17 @@
                     console.log('Developer ID saved from login:', getDeveloperId());
                 }
                 
-                // Hide login modal
-                document.getElementById('authModal').style.display = 'none';
+                // Hide auth screen
+                const authScreen = document.getElementById('authScreen');
+                if (authScreen) {
+                    authScreen.classList.remove('active');
+                }
                 
-                // Show authenticated sections
-                document.querySelectorAll('.auth-required').forEach(el => {
-                    el.style.display = 'block';
-                });
+                // Show main content
+                const mainContent = document.getElementById('mainContent');
+                if (mainContent) {
+                    mainContent.style.display = 'block';
+                }
                 
                 // Populate developer ID if on upload page
                 if (typeof populateDeveloperId === 'function') {
@@ -5553,11 +5557,15 @@
                         localStorage.setItem('developerInfo', JSON.stringify(devInfo));
                     }
                     
-                    // Hide modal and refresh
-                    document.getElementById('authModal').style.display = 'none';
-                    document.querySelectorAll('.auth-required').forEach(el => {
-                        el.style.display = 'block';
-                    });
+                    // Hide auth screen and show main content
+                    const authScreen = document.getElementById('authScreen');
+                    if (authScreen) {
+                        authScreen.classList.remove('active');
+                    }
+                    const mainContent = document.getElementById('mainContent');
+                    if (mainContent) {
+                        mainContent.style.display = 'block';
+                    }
                     
                     // Show welcome message
                     showAlert(`Welcome ${companyName}! Your developer ID is ${developer.developerId}`, 'success');
@@ -5606,9 +5614,9 @@
         
         // Show auth screen
         function showAuthScreen() {
-            const authModal = document.getElementById('authModal');
-            if (authModal) {
-                authModal.style.display = 'flex';
+            const authScreen = document.getElementById('authScreen');
+            if (authScreen) {
+                authScreen.classList.add('active');
             }
         }
         
