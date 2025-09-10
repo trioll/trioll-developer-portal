@@ -38,32 +38,36 @@ All API calls go to: `https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/pro
 - **Client ID**: `5joogquqr4jgukp7mncgp3g23h` (Developer portal specific)
 - **Tokens**: JWT tokens stored in localStorage/sessionStorage
 
-## Problems Identified
+## Problems Identified (RESOLVED ✅)
 
-### 1. AWS SDK Initialization Errors
-```
-[18:46:25] AWS credential error: Access to Identity 'us-east-1:82c4aaed-8464-c249-a528-583cdb793ef0' is forbidden.
-[18:46:25] Error code: NotAuthorizedException
-```
-- The portal tries to use the mobile app's Identity Pool
-- This fails because the developer portal uses a different Cognito client ID
-- The code falls back to API endpoints, so functionality works but creates error noise
+### 1. ~~AWS SDK Initialization Errors~~ ✅ FIXED
+- **Previous Issue**: Portal tried to use mobile app's Identity Pool causing NotAuthorizedException
+- **Resolution**: Removed AWS SDK initialization - portal now uses API endpoints exclusively
+- **Result**: No more credential errors in console
 
-### 2. Mixed Upload Approach
-- The S3GameUploader class tries to upload directly to S3
-- This requires AWS credentials which the portal shouldn't have
-- Should be replaced with multipart upload via API endpoints
+### 2. ~~Mixed Upload Approach~~ ⚠️ PARTIAL
+- **Current State**: S3GameUploader class still exists but AWS initialization is disabled
+- **Workaround**: Upload functionality gracefully falls back to API
+- **Future**: Should implement multipart upload via API endpoints
 
-### 3. Unnecessary AWS Status Checks
-- `initializeAWS()` function runs on page load
-- `checkS3Status()` tries to verify S3 access
-- AWS status indicator in UI (currently hidden)
-- S3 test functions in debug panel
+### 3. ~~Unnecessary AWS Status Checks~~ ✅ FIXED
+- **Resolution**: 
+  - Removed `initializeAWS()` calls
+  - Updated debug panel to show "API Mode" instead of S3 status
+  - Removed S3 test functions
+  - Hidden AWS status indicator
 
-### 4. CORS Considerations
-- API Gateway handles CORS headers
-- S3 bucket CORS not needed if using API uploads
-- Current CORS errors are due to direct S3 access attempts
+### 4. ~~CORS Considerations~~ ✅ RESOLVED
+- **Resolution**: API Gateway properly handles CORS
+- **Result**: No CORS errors since removing direct S3 access
+
+### 5. ~~Field Naming Inconsistencies~~ ✅ FIXED (September 10, 2025)
+- **Previous Issue**: Frontend used `game.name` but API returned `game.title`
+- **Previous Issue**: `developerId` field missing from API responses
+- **Resolution**: 
+  - Updated Lambda `transformGame()` to include `developerId` field
+  - Standardized all frontend tabs to use `title` as primary field
+  - Added proper field mappings across all sections
 
 ## Recommended Changes
 
@@ -123,9 +127,49 @@ The portal currently works because:
 3. Game uploads still work (but show errors)
 4. All read operations use API successfully
 
+## API Response Field Structure (Updated September 10, 2025)
+
+### Game Object Fields
+The API returns game objects with the following structure:
+```javascript
+{
+  "id": "game-unique-id",
+  "title": "Game Title",              // Primary display field
+  "developerId": "dev_c84a7e",        // Developer ID for ownership
+  "developerName": "FreddieTrioll",   // Developer display name
+  "category": "Arcade",               // Game category
+  "thumbnailUrl": "https://...",      // Game thumbnail
+  "gameUrl": "https://...",           // Game play URL
+  "playCount": 0,                     // Number of plays
+  "likeCount": 0,                     // Number of likes
+  "bookmarkCount": 0,                 // Number of bookmarks
+  "commentsCount": 0,                 // Number of comments
+  "rating": 0,                        // Average rating (0-5)
+  "ratingCount": 0,                   // Number of ratings
+  // ... other fields
+}
+```
+
+### Frontend Field Mapping
+All frontend tabs now use consistent field names:
+- **Display Name**: `game.title` (fallback to `game.name` for legacy data)
+- **Developer ID**: `game.developerId` (used for ownership verification)
+- **Category**: `game.category` (fallback to `game.genre`)
+- **Thumbnail**: `game.thumbnailUrl` (fallback to `game.imageUrl`)
+
+### Developer Authentication
+JWT tokens contain developer information:
+```javascript
+{
+  "custom:developer_id": "dev_c84a7e",  // Primary developer ID
+  "email": "developer@email.com",       // Developer email
+  // ... other claims
+}
+```
+
 ## Next Steps
 
-1. Deploy current changes to stop AWS credential errors
-2. Plan backend API for file uploads
-3. Remove AWS SDK dependencies completely
-4. Update documentation to reflect API-only architecture
+1. ~~Deploy current changes to stop AWS credential errors~~ ✅ COMPLETE
+2. Plan backend API for file uploads (future enhancement)
+3. Remove AWS SDK dependencies completely (partial - script tag remains)
+4. ~~Update documentation to reflect API-only architecture~~ ✅ COMPLETE
