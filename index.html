@@ -5473,7 +5473,13 @@
                 // Show main content
                 const mainContent = document.getElementById('mainContent');
                 if (mainContent) {
-                    mainContent.style.display = 'block';
+                    mainContent.classList.add('visible');
+                }
+                
+                // Show navigation
+                const nav = document.getElementById('navigation');
+                if (nav) {
+                    nav.style.display = 'block';
                 }
                 
                 // Populate developer ID if on upload page
@@ -5564,7 +5570,13 @@
                     }
                     const mainContent = document.getElementById('mainContent');
                     if (mainContent) {
-                        mainContent.style.display = 'block';
+                        mainContent.classList.add('visible');
+                    }
+                    
+                    // Show navigation
+                    const nav = document.getElementById('navigation');
+                    if (nav) {
+                        nav.style.display = 'block';
                     }
                     
                     // Show welcome message
@@ -5851,6 +5863,22 @@
                     const exp = payload.exp * 1000;
                     if (exp > Date.now()) {
                         syncDeveloperIdFromToken();
+                        
+                        // Show main content and navigation if authenticated
+                        const mainContent = document.getElementById('mainContent');
+                        if (mainContent) {
+                            mainContent.classList.add('visible');
+                        }
+                        const nav = document.getElementById('navigation');
+                        if (nav) {
+                            nav.style.display = 'block';
+                        }
+                        
+                        // Hide auth screen if it's shown
+                        const authScreen = document.getElementById('authScreen');
+                        if (authScreen) {
+                            authScreen.classList.remove('active');
+                        }
                     }
                 } catch (e) {
                     console.error('Token validation error:', e);
