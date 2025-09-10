@@ -5951,11 +5951,27 @@
                 analyticsData.games = data.games || [];
                 const developerId = data.developerId;
                 
-                console.log('Analytics: Games after filtering:', analyticsData.games.length);
+                console.log('Analytics: API Response:', data);
+                console.log('Analytics: Games received:', analyticsData.games.length);
+                console.log('Analytics: Developer ID:', developerId);
                 
                 // If no games found but API worked, show appropriate message
-                if (allGames.length > 0 && analyticsData.games.length === 0) {
-                    console.log('No games found for this developer, but other games exist');
+                if (analyticsData.games.length === 0) {
+                    console.log('No games found for developer:', developerId);
+                    document.getElementById('analyticsTableContainer').innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-gray-400);">
+                            <h3 style="color: var(--text-gray-200); margin-bottom: 0.5rem;">No games found</h3>
+                            <p>Upload games to see analytics data</p>
+                        </div>
+                    `;
+                    // Update stats to show zeros
+                    analyticsData.totalGames = 0;
+                    analyticsData.totalPlays = 0;
+                    analyticsData.totalLikes = 0;
+                    analyticsData.totalComments = 0;
+                    analyticsData.avgRating = 'N/A';
+                    displayAnalyticsStats();
+                    return;
                 }
                 
                 // Log the metrics fields for the first game to debug
