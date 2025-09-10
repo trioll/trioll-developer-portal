@@ -1348,11 +1348,11 @@
     <!-- Starfield Canvas Background -->
     <canvas class="starfield-canvas" id="starfieldCanvas"></canvas>
 
-    <!-- AWS Status Indicator -->
-    <div id="awsStatus" class="aws-status" style="display: none;">
+    <!-- AWS Status Indicator (Hidden - Portal uses API endpoints) -->
+    <!-- <div id="awsStatus" class="aws-status" style="display: none;">
         <span class="aws-status-dot"></span>
         <span id="awsStatusText">Initializing...</span>
-    </div>
+    </div> -->
 
     <!-- Lock Screen -->
     <div id="lockScreen" class="lock-screen">
@@ -4250,29 +4250,12 @@
         }
         
         async function checkS3Status() {
-            logToDebugConsole('Checking S3 upload capability...');
+            logToDebugConsole('Developer portal uses API endpoints for uploads');
             
-            if (typeof s3 === 'undefined') {
-                updateStatusCard('s3Status', '❌', 'Not Configured', 
-                    'S3 client not initialized', 'error');
-                return;
-            }
-            
-            try {
-                // Test with a HEAD request to bucket
-                const testKey = `test-permissions-${Date.now()}.txt`;
-                const params = {
-                    Bucket: AWS_CONFIG.gamesBucket,
-                    Key: testKey
-                };
-                
-                updateStatusCard('s3Status', '✅', 'Ready', 
-                    `Bucket: ${AWS_CONFIG.gamesBucket}`, 'success');
-                logToDebugConsole('S3 upload ready', 'success');
-            } catch (e) {
-                updateStatusCard('s3Status', '⚠️', 'Check Required', 
-                    'Test upload to verify', 'warning');
-            }
+            // Developer portal doesn't use direct S3 access
+            updateStatusCard('s3Status', '✅', 'API Mode', 
+                'Using API endpoints', 'success');
+            logToDebugConsole('File uploads handled via API endpoints', 'info');
         }
         
         async function runFullSystemCheck() {
@@ -4733,8 +4716,7 @@
                 logToDebugConsole('Tokens synced to sessionStorage', 'success');
             }
             
-            // Reinitialize AWS
-            initializeAWS();
+            // AWS reinitialization removed - portal uses API endpoints
         }
         
         async function testRefreshToken() {
@@ -5442,10 +5424,8 @@
                 }
                 
                 // Reinitialize AWS with authenticated credentials
-                console.log('Reinitializing AWS with authenticated credentials...');
-                setTimeout(() => {
-                    initializeAWS();
-                }, 100);
+                // AWS initialization removed - portal uses API endpoints
+                console.log('Authentication successful - using API endpoints');
                 
                 // Sync developer ID from token
                 syncDeveloperIdFromToken();
@@ -5756,9 +5736,10 @@
                 }
             }, 1000);
             
-            // Initialize AWS immediately
-            console.log('Initializing AWS SDK...');
-            initializeAWS();
+            // REMOVED: AWS SDK initialization not needed for developer portal
+            // The portal uses API endpoints, not direct AWS access
+            // console.log('Initializing AWS SDK...');
+            // initializeAWS();
             
             // Check for existing token after a short delay to ensure storage is ready
             setTimeout(() => {
@@ -5780,11 +5761,9 @@
             // Setup device compatibility checkboxes
             setupDeviceCompatibility();
             
-            // Load games directly from S3 to show actual bucket contents
-            // First try S3, then fall back to API if S3 fails
-            initializeAWS();
+            // Load games from API (developer portal doesn't need direct S3 access)
             setTimeout(() => {
-                loadGamesFromS3();
+                loadGamesFromAPI();
             }, 1000);
             
             // Auto-populate developer ID when page loads
