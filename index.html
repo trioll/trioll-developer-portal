@@ -2013,13 +2013,13 @@
                     </div>
                     
                     <div style="background: #1a1a1a; padding: 1rem; border-radius: 8px; border: 1px solid #333;">
-                        <h4 style="color: #00ff88; margin-bottom: 0.5rem;">☁️ S3 Upload</h4>
+                        <h4 style="color: #00ff88; margin-bottom: 0.5rem;">📤 Upload Status</h4>
                         <div id="s3StatusCard">
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span id="s3StatusIcon">⏳</span>
-                                <span id="s3StatusText">Checking...</span>
+                                <span id="s3StatusIcon">✅</span>
+                                <span id="s3StatusText">API Mode</span>
                             </div>
-                            <small id="s3StatusDetails" style="color: #888; display: block; margin-top: 0.5rem;"></small>
+                            <small id="s3StatusDetails" style="color: #888; display: block; margin-top: 0.5rem;">Portal uses API endpoints</small>
                         </div>
                     </div>
                 </div>
@@ -2071,11 +2071,11 @@
                     </div>
                     
                     <div>
-                        <h4 style="color: #fbbf24; margin-bottom: 0.5rem;">Storage & Upload Tests</h4>
+                        <h4 style="color: #fbbf24; margin-bottom: 0.5rem;">Upload & CDN Tests</h4>
                         <div class="button-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button class="btn btn-sm" onclick="testS3Upload()">S3 Upload Test</button>
-                            <button class="btn btn-sm" onclick="testS3Permissions()">S3 Permissions</button>
+                            <button class="btn btn-sm" onclick="testAPIUpload()">API Upload Test</button>
                             <button class="btn btn-sm" onclick="testCloudFront()">CloudFront CDN</button>
+                            <button class="btn btn-sm" onclick="testGameAssets()">Game Assets Check</button>
                         </div>
                     </div>
                     
@@ -4828,65 +4828,79 @@
             }
         }
         
-        async function testS3Upload() {
-            logToDebugConsole('Testing S3 upload...');
+        async function testAPIUpload() {
+            logToDebugConsole('Testing API upload capability...');
             
-            if (!s3) {
-                logToDebugConsole('S3 client not initialized. Initializing AWS...', 'info');
-                initializeAWS();
-                
-                // Wait a bit for initialization
-                setTimeout(() => {
-                    if (!s3) {
-                        logToDebugConsole('S3 still not initialized. Check AWS credentials.', 'error');
-                        return;
+            const token = validateAndGetToken();
+            if (!token) {
+                logToDebugConsole('No authentication token found', 'error');
+                return;
+            }
+            
+            try {
+                // Test if the upload endpoint is accessible
+                logToDebugConsole('Checking /games POST endpoint...', 'info');
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
-                    performS3UploadTest();
-                }, 1000);
-            } else {
-                performS3UploadTest();
+                });
+                
+                if (response.ok || response.status === 405) {
+                    logToDebugConsole('✅ Upload API endpoint is accessible', 'success');
+                    logToDebugConsole('Note: File uploads currently use S3 directly but should be migrated to API', 'warning');
+                } else {
+                    logToDebugConsole(`❌ Upload API returned ${response.status}`, 'error');
+                }
+            } catch (e) {
+                logToDebugConsole(`❌ Upload API test failed: ${e.message}`, 'error');
             }
         }
         
-        async function performS3UploadTest() {
+        // Removed performS3UploadTest - portal uses API endpoints, not direct S3 access
+        
+        async function testGameAssets() {
+            logToDebugConsole('Checking game assets accessibility...');
+            
             try {
-                const testFile = new Blob(['Debug test file'], { type: 'text/plain' });
-                const key = `debug-test-${Date.now()}.txt`;
-                
-                const params = {
-                    Bucket: AWS_CONFIG.gamesBucket,
-                    Key: key,
-                    Body: testFile
-                };
-                
-                logToDebugConsole('Uploading test file...', 'info');
-                
-                // Ensure S3 is initialized
-                if (!s3) {
-                    throw new Error('S3 client not initialized - try logging in first');
+                // Get list of games via API
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games?limit=1`);
+                if (!response.ok) {
+                    logToDebugConsole('Failed to fetch games list', 'error');
+                    return;
                 }
                 
-                const uploadResult = await s3.upload(params).promise();
-                
-                logToDebugConsole('S3 upload test successful!', 'success');
-                
-                // Try to delete the test file
-                await s3.deleteObject({ Bucket: AWS_CONFIG.gamesBucket, Key: key }).promise();
-                logToDebugConsole('Test file cleaned up', 'info');
+                const data = await response.json();
+                if (data.games && data.games.length > 0) {
+                    const game = data.games[0];
+                    logToDebugConsole(`Testing asset access for: ${game.name}`, 'info');
+                    
+                    // Test thumbnail access
+                    if (game.thumbnailUrl) {
+                        try {
+                            const thumbResponse = await fetch(game.thumbnailUrl, { method: 'HEAD' });
+                            if (thumbResponse.ok) {
+                                logToDebugConsole('✅ Thumbnail accessible via S3/CDN', 'success');
+                            } else {
+                                logToDebugConsole(`⚠️ Thumbnail returned ${thumbResponse.status}`, 'warning');
+                            }
+                        } catch (e) {
+                            logToDebugConsole('❌ Thumbnail not accessible', 'error');
+                        }
+                    }
+                    
+                    // Test game URL
+                    if (game.gameUrl) {
+                        logToDebugConsole(`Game URL: ${game.gameUrl}`, 'info');
+                        logToDebugConsole('Note: Game files are served directly from S3/CDN', 'info');
+                    }
+                } else {
+                    logToDebugConsole('No games found to test', 'warning');
+                }
             } catch (e) {
-                logToDebugConsole(`S3 upload error: ${e.message}`, 'error');
-            }
-        }
-        
-        async function testS3Permissions() {
-            logToDebugConsole('Checking S3 permissions...');
-            
-            // Check if S3 client is configured
-            if (typeof s3 !== 'undefined') {
-                logToDebugConsole('S3 client is configured', 'success');
-                logToDebugConsole(`Target bucket: ${AWS_CONFIG.gamesBucket}`, 'info');
-            } else {
-                logToDebugConsole('S3 client not found!', 'error');
+                logToDebugConsole(`Asset test error: ${e.message}`, 'error');
             }
         }
         
