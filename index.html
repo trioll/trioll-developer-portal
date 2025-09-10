@@ -5881,12 +5881,19 @@
                     </div>
                 `;
                 
-                // Get all games first
-                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Origin': window.location.origin
-                    }
+                // Get developer's games using the authenticated endpoint
+                const token = validateAndGetToken();
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Origin': window.location.origin
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/games`, {
+                    headers: headers
                 });
                 
                 if (!response.ok) {
@@ -5894,37 +5901,9 @@
                 }
                 
                 const data = await response.json();
-                const allGames = data.games || [];
-                
-                // Get developer ID from JWT token
-                let developerId = getDeveloperId();
-                
-                // If no developer ID from token, we can't filter games
-                if (!developerId) {
-                    console.warn('No developer ID found in JWT token');
-                }
-                
-                if (!developerId) {
-                    throw new Error('Developer ID not found');
-                }
-                
-                // Debug logging
-                console.log('Analytics: Total games found:', allGames.length);
-                console.log('Analytics: Developer ID:', developerId);
-                console.log('Analytics: Sample game:', allGames[0]);
-                console.log('Analytics: All games data:', allGames);
-                
-                // Filter games by developer
-                analyticsData.games = allGames.filter(game => {
-                    // Check if game belongs to this developer
-                    const belongsToDeveloper = game.developerId === developerId || game.developer === developerId;
-                    
-                    if (allGames.length < 10) { // Only log for small datasets to avoid spam
-                        console.log(`Game ${game.id || game.gameId}: developerId=${game.developerId}, belongs=${belongsToDeveloper}`);
-                    }
-                    
-                    return belongsToDeveloper;
-                });
+                // The /developers/games endpoint returns pre-filtered games
+                analyticsData.games = data.games || [];
+                const developerId = data.developerId;
                 
                 console.log('Analytics: Games after filtering:', analyticsData.games.length);
                 
