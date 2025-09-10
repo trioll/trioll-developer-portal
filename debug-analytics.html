@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Analytics Issue</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+        pre { background: #2a2a2a; padding: 10px; overflow: auto; border-radius: 5px; margin: 10px 0; }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        .warning { color: #ffd93d; }
+        button { padding: 10px 20px; margin: 10px 5px; cursor: pointer; background: #3b82f6; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <h1>Analytics Debug Tool</h1>
+    <p>Run these tests to diagnose why analytics data isn't showing:</p>
+    
+    <button onclick="testAuth()">1. Test Authentication</button>
+    <button onclick="testDeveloperGames()">2. Test Developer Games API</button>
+    <button onclick="testGameStats()">3. Test Individual Game Stats</button>
+    <button onclick="testAllEndpoints()">4. Run All Tests</button>
+    <button onclick="clearOutput()">Clear Output</button>
+    
+    <div id="output"></div>
+    
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : type === 'warning' ? '#ffd93d' : '#ffffff';
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+        }
+        
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+        
+        async function testAuth() {
+            log('=== Testing Authentication ===');
+            
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (!token) {
+                log('❌ No authentication token found', 'error');
+                log('Please login to triolldev.com first', 'error');
+                return false;
+            }
+            
+            log('✅ Token found', 'success');
+            
+            // Decode token
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                log(`Developer ID: ${payload['custom:developer_id'] || payload.preferred_username || 'Not found'}`, 'success');
+                log(`Email: ${payload.email || payload['cognito:username'] || 'Not found'}`, 'success');
+                return true;
+            } catch (e) {
+                log('Failed to decode token', 'error');
+                return false;
+            }
+        }
+        
+        async function testDeveloperGames() {
+            log('\n=== Testing Developer Games API ===');
+            
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (!token) {
+                log('No token - skipping', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/developers/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                log(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                const data = await response.json();
+                log(`Raw response:`, 'info');
+                document.getElementById('output').innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                
+                if (data.games && Array.isArray(data.games)) {
+                    log(`✅ Found ${data.games.length} games`, 'success');
+                    
+                    // Check first game
+                    if (data.games.length > 0) {
+                        const game = data.games[0];
+                        log('\nFirst game analysis:', 'info');
+                        log(`- Name: ${game.name || game.title || 'MISSING'}`, game.name ? 'success' : 'warning');
+                        log(`- Game ID: ${game.id || game.gameId || 'MISSING'}`, game.id ? 'success' : 'warning');
+                        log(`- Developer ID: ${game.developerId || 'MISSING'}`, game.developerId ? 'success' : 'error');
+                        log(`- Play Count: ${game.playCount !== undefined ? game.playCount : 'MISSING'}`, game.playCount !== undefined ? 'success' : 'error');
+                        log(`- Like Count: ${game.likeCount !== undefined ? game.likeCount : 'MISSING'}`, game.likeCount !== undefined ? 'success' : 'error');
+                        log(`- Comments Count: ${game.commentsCount !== undefined ? game.commentsCount : 'MISSING'}`, game.commentsCount !== undefined ? 'success' : 'error');
+                        
+                        // Calculate totals
+                        const totalPlays = data.games.reduce((sum, g) => sum + (g.playCount || 0), 0);
+                        const totalLikes = data.games.reduce((sum, g) => sum + (g.likeCount || 0), 0);
+                        log(`\nTotal plays across all games: ${totalPlays}`, totalPlays > 0 ? 'success' : 'warning');
+                        log(`Total likes across all games: ${totalLikes}`, totalLikes > 0 ? 'success' : 'warning');
+                    }
+                } else {
+                    log('❌ No games array in response', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                log(error.stack, 'error');
+            }
+        }
+        
+        async function testGameStats() {
+            log('\n=== Testing Individual Game Stats ===');
+            
+            // Test with Evolution Runner
+            const gameId = 'Evolution-Runner';
+            
+            try {
+                log(`\nTesting game: ${gameId}`);
+                
+                // Get game details
+                const gameResponse = await fetch(`${API_BASE}/games/${gameId}`);
+                const gameData = await gameResponse.json();
+                
+                log(`Game details fetched:`, 'success');
+                log(`- Play Count: ${gameData.playCount}`, gameData.playCount > 0 ? 'success' : 'warning');
+                log(`- Like Count: ${gameData.likeCount}`, gameData.likeCount > 0 ? 'success' : 'warning');
+                log(`- Developer ID: ${gameData.developerId || 'MISSING'}`, gameData.developerId ? 'success' : 'error');
+                
+                // Test interaction endpoints
+                const endpoints = ['likes', 'plays', 'ratings'];
+                for (const endpoint of endpoints) {
+                    const response = await fetch(`${API_BASE}/games/${gameId}/${endpoint}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        log(`✅ ${endpoint} endpoint working: ${JSON.stringify(data)}`, 'success');
+                    } else {
+                        log(`❌ ${endpoint} endpoint failed: ${response.status}`, 'error');
+                    }
+                }
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAllEndpoints() {
+            clearOutput();
+            if (await testAuth()) {
+                await testDeveloperGames();
+                await testGameStats();
+            }
+            log('\n=== All tests complete ===', 'info');
+        }
+        
+        // Auto-run on load
+        window.onload = () => {
+            log('Debug tool loaded. Click a button to start testing.', 'info');
+        };
+    </script>
+</body>
+</html>

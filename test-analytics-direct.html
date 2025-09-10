@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Direct Analytics Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+        }
+        pre {
+            background: #111;
+            padding: 10px;
+            border: 1px solid #333;
+            overflow: auto;
+        }
+        .warning {
+            color: #ff0;
+            background: #330;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #660;
+        }
+    </style>
+</head>
+<body>
+    <h1>Direct Analytics Test</h1>
+    
+    <div class="warning">
+        ⚠️ This page tests the /developers/games endpoint directly.<br>
+        1. Open triolldev.com and login first<br>
+        2. Then refresh this page to see results
+    </div>
+    
+    <h2>Test Results:</h2>
+    <pre id="results">Loading...</pre>
+    
+    <script>
+        async function test() {
+            const resultsEl = document.getElementById('results');
+            
+            // Get token from triolldev.com localStorage
+            const token = localStorage.getItem('developerToken');
+            
+            if (!token) {
+                resultsEl.textContent = 'ERROR: No token found. Please login at triolldev.com first.';
+                return;
+            }
+            
+            try {
+                // Decode token to show developer info
+                const tokenParts = token.split('.');
+                const payload = JSON.parse(atob(tokenParts[1]));
+                
+                let output = `TOKEN INFO:\n`;
+                output += `Developer ID: ${payload['custom:developer_id'] || 'NOT FOUND'}\n`;
+                output += `Username: ${payload.preferred_username || 'NOT FOUND'}\n\n`;
+                
+                // Call the endpoint
+                output += `CALLING: GET /developers/games\n`;
+                output += `Authorization: Bearer ${token.substring(0, 20)}...\n\n`;
+                
+                const response = await fetch('https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod/developers/games', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                output += `RESPONSE STATUS: ${response.status}\n\n`;
+                output += `GAMES FOUND: ${data.games ? data.games.length : 0}\n\n`;
+                
+                if (data.games && data.games.length > 0) {
+                    output += `GAME STATS CHECK:\n`;
+                    data.games.forEach((game, i) => {
+                        output += `\n${i+1}. ${game.title || game.name}\n`;
+                        output += `   ID: ${game.id}\n`;
+                        output += `   playCount: ${game.playCount !== undefined ? game.playCount : 'MISSING'}\n`;
+                        output += `   likeCount: ${game.likeCount !== undefined ? game.likeCount : 'MISSING'}\n`;
+                        output += `   commentCount: ${game.commentCount !== undefined ? game.commentCount : 'MISSING'}\n`;
+                        output += `   rating: ${game.rating !== undefined ? game.rating : 'MISSING'}\n`;
+                    });
+                    
+                    // Check if ANY game has stats
+                    const hasAnyStats = data.games.some(g => 
+                        g.playCount !== undefined || 
+                        g.likeCount !== undefined || 
+                        g.commentCount !== undefined
+                    );
+                    
+                    output += `\n\nANY GAME HAS STATS: ${hasAnyStats ? 'YES ✅' : 'NO ❌'}\n`;
+                }
+                
+                output += `\n\nFULL RESPONSE:\n${JSON.stringify(data, null, 2)}`;
+                
+                resultsEl.textContent = output;
+                
+            } catch (err) {
+                resultsEl.textContent = `ERROR: ${err.message}\n\n${err.stack}`;
+            }
+        }
+        
+        // Auto-run test
+        test();
+        
+        // Also log to console
+        console.log('Test page loaded. Token exists:', !!localStorage.getItem('developerToken'));
+    </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Analytics Issue</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+        pre { background: #2a2a2a; padding: 10px; overflow: auto; }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Analytics Debug Test</h1>
+    
+    <button onclick="testDeveloperGames()">Test Developer Games Endpoint</button>
+    <button onclick="testIndividualGames()">Test Individual Game Stats</button>
+    <button onclick="compareData()">Compare Data Sources</button>
+    
+    <div id="output"></div>
+    
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#ffffff';
+            output.innerHTML += `<div style="color: ${color}">${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+        
+        async function testDeveloperGames() {
+            log('Testing /developers/games endpoint...');
+            
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (!token) {
+                log('No token found - please login to triolldev.com first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/developers/games`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                log(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (data.games && data.games.length > 0) {
+                    log(`Found ${data.games.length} games`, 'success');
+                    
+                    // Check first game's analytics fields
+                    const game = data.games[0];
+                    log(`\nFirst game: ${game.name || game.title}`);
+                    log(`- playCount: ${game.playCount !== undefined ? game.playCount : 'MISSING'}`);
+                    log(`- likeCount: ${game.likeCount !== undefined ? game.likeCount : 'MISSING'}`);
+                    log(`- ratingCount: ${game.ratingCount !== undefined ? game.ratingCount : 'MISSING'}`);
+                    log(`- commentCount: ${game.commentCount !== undefined ? game.commentCount : 'MISSING'}`);
+                    log(`- bookmarkCount: ${game.bookmarkCount !== undefined ? game.bookmarkCount : 'MISSING'}`);
+                    
+                    document.getElementById('output').innerHTML += `<pre>${JSON.stringify(game, null, 2)}</pre>`;
+                } else {
+                    log('No games found', 'error');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testIndividualGames() {
+            log('\nTesting individual game endpoints...');
+            
+            // Test a known game
+            const gameId = 'Evolution-Runner';
+            
+            try {
+                // Test main game endpoint
+                log(`\nFetching /games/${gameId}...`);
+                const gameResponse = await fetch(`${API_BASE}/games/${gameId}`);
+                const gameData = await gameResponse.json();
+                log(`Game data received - playCount: ${gameData.playCount}`, 'success');
+                
+                // Test individual stats endpoints
+                const endpoints = ['likes', 'plays', 'ratings'];
+                for (const endpoint of endpoints) {
+                    log(`\nFetching /games/${gameId}/${endpoint}...`);
+                    const response = await fetch(`${API_BASE}/games/${gameId}/${endpoint}`);
+                    const data = await response.json();
+                    log(`${endpoint}: ${JSON.stringify(data)}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function compareData() {
+            log('\nComparing data sources...');
+            
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (!token) {
+                log('No token found', 'error');
+                return;
+            }
+            
+            try {
+                // Get all games
+                const allGamesResponse = await fetch(`${API_BASE}/games`);
+                const allGames = await allGamesResponse.json();
+                
+                // Get developer games
+                const devGamesResponse = await fetch(`${API_BASE}/developers/games`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const devGames = await devGamesResponse.json();
+                
+                log(`\nAll games count: ${allGames.games ? allGames.games.length : 0}`);
+                log(`Developer games count: ${devGames.games ? devGames.games.length : 0}`);
+                
+                // Check if developer games have stats
+                if (devGames.games && devGames.games.length > 0) {
+                    const totalPlays = devGames.games.reduce((sum, g) => sum + (g.playCount || 0), 0);
+                    const totalLikes = devGames.games.reduce((sum, g) => sum + (g.likeCount || 0), 0);
+                    log(`\nDeveloper games total plays: ${totalPlays}`, totalPlays > 0 ? 'success' : 'error');
+                    log(`Developer games total likes: ${totalLikes}`, totalLikes > 0 ? 'success' : 'error');
+                }
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

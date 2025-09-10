@@ -2826,9 +2826,18 @@
             
             lockOut() {
                 this.locked = true;
-                document.querySelector('.passcode-text').textContent = 'Too many attempts. Try again later.';
+                document.querySelector('.passcode-text').textContent = 'Too many attempts. Try again in 30 seconds.';
                 document.querySelector('.keypad').style.opacity = '0.3';
                 document.querySelector('.keypad').style.pointerEvents = 'none';
+                
+                // Auto-unlock after 30 seconds
+                setTimeout(() => {
+                    this.locked = false;
+                    this.attempts = 0;
+                    document.querySelector('.passcode-text').textContent = 'Enter Passcode To Access The Website';
+                    document.querySelector('.keypad').style.opacity = '1';
+                    document.querySelector('.keypad').style.pointerEvents = 'auto';
+                }, 30000); // 30 seconds
             }
             
             unlock() {

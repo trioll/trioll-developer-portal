@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Analytics Stats</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+        }
+        .game-box {
+            background: #111;
+            border: 1px solid #0f0;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .stats {
+            color: #ff0;
+        }
+        pre {
+            background: #111;
+            padding: 10px;
+            border: 1px solid #333;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Testing Analytics Stats from /developers/games</h1>
+    
+    <div id="status">Initializing...</div>
+    
+    <h2>Raw Response:</h2>
+    <pre id="rawResponse"></pre>
+    
+    <h2>Games with Stats:</h2>
+    <div id="gamesContainer"></div>
+    
+    <script>
+        const AWS_CONFIG = {
+            apiEndpoint: 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod'
+        };
+        
+        async function testAnalyticsStats() {
+            const statusEl = document.getElementById('status');
+            const rawResponseEl = document.getElementById('rawResponse');
+            const gamesContainer = document.getElementById('gamesContainer');
+            
+            // Get token from localStorage
+            const token = localStorage.getItem('developerToken');
+            
+            if (!token) {
+                statusEl.textContent = '❌ ERROR: No developer token found. Please login at triolldev.com first.';
+                return;
+            }
+            
+            statusEl.textContent = '🔄 Fetching /developers/games...';
+            
+            try {
+                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/games`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                rawResponseEl.textContent = JSON.stringify(data, null, 2);
+                
+                if (response.ok && data.games) {
+                    statusEl.textContent = `✅ Success! Found ${data.games.length} games`;
+                    
+                    // Display each game with its stats
+                    data.games.forEach((game, index) => {
+                        const gameDiv = document.createElement('div');
+                        gameDiv.className = 'game-box';
+                        gameDiv.innerHTML = `
+                            <h3>${index + 1}. ${game.title || 'Untitled'}</h3>
+                            <div class="stats">
+                                📊 Plays: ${game.playCount || 0} | 
+                                ❤️ Likes: ${game.likeCount || 0} | 
+                                ⭐ Rating: ${game.rating || 0} | 
+                                💬 Comments: ${game.commentsCount || game.commentCount || 0}
+                            </div>
+                            <div style="color: #888;">
+                                ID: ${game.id}<br>
+                                Has Play Count: ${game.playCount !== undefined ? 'YES' : 'NO'}<br>
+                                Has Like Count: ${game.likeCount !== undefined ? 'YES' : 'NO'}
+                            </div>
+                        `;
+                        gamesContainer.appendChild(gameDiv);
+                    });
+                    
+                    // Check if any game has stats
+                    const hasAnyStats = data.games.some(g => 
+                        g.playCount > 0 || g.likeCount > 0 || g.commentCount > 0
+                    );
+                    
+                    if (!hasAnyStats) {
+                        statusEl.textContent += ' ⚠️ BUT no games have stats values > 0';
+                    }
+                } else {
+                    statusEl.textContent = `❌ Error: ${data.error || 'Failed to fetch games'}`;
+                }
+            } catch (err) {
+                statusEl.textContent = `❌ Network error: ${err.message}`;
+                rawResponseEl.textContent = err.toString();
+            }
+        }
+        
+        // Test on load
+        testAnalyticsStats();
+    </script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lock Screen Debug</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #000; 
+            color: white; 
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .keypad { 
+            display: grid; 
+            grid-template-columns: repeat(3, 80px); 
+            gap: 20px; 
+            margin-top: 30px;
+        }
+        .key-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .key-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .key-button:active {
+            transform: scale(0.95);
+        }
+        #output {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .dots {
+            font-size: 30px;
+            letter-spacing: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <div id="output">
+            <h1>Lock Screen Test</h1>
+            <p>Password: 477235</p>
+            <div class="dots" id="dots">○○○○○○</div>
+            <div id="status">Enter PIN</div>
+        </div>
+        <div class="keypad">
+            <button class="key-button" data-key="1">1</button>
+            <button class="key-button" data-key="2">2</button>
+            <button class="key-button" data-key="3">3</button>
+            <button class="key-button" data-key="4">4</button>
+            <button class="key-button" data-key="5">5</button>
+            <button class="key-button" data-key="6">6</button>
+            <button class="key-button" data-key="7">7</button>
+            <button class="key-button" data-key="8">8</button>
+            <button class="key-button" data-key="9">9</button>
+            <button class="key-button" data-key="clear" style="font-size: 16px;">Clear</button>
+            <button class="key-button" data-key="0">0</button>
+            <button class="key-button" data-key="back">←</button>
+        </div>
+    </div>
+
+    <script>
+        let pin = '';
+        const correctPin = '477235';
+        
+        function updateDots() {
+            const dots = document.getElementById('dots');
+            let display = '';
+            for (let i = 0; i < 6; i++) {
+                display += i < pin.length ? '●' : '○';
+            }
+            dots.textContent = display;
+        }
+        
+        function checkPin() {
+            const status = document.getElementById('status');
+            if (pin === correctPin) {
+                status.textContent = '✅ Correct! Would unlock here.';
+                status.style.color = '#4ade80';
+            } else {
+                status.textContent = '❌ Incorrect PIN';
+                status.style.color = '#ef4444';
+                setTimeout(() => {
+                    pin = '';
+                    updateDots();
+                    status.textContent = 'Enter PIN';
+                    status.style.color = 'white';
+                }, 1000);
+            }
+        }
+        
+        // Test if clicks work
+        document.addEventListener('click', (e) => {
+            console.log('Document clicked:', e.target);
+        });
+        
+        // Add click handlers
+        document.querySelectorAll('.key-button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                const key = this.dataset.key;
+                console.log('Button clicked:', key);
+                
+                if (key === 'clear') {
+                    pin = '';
+                    updateDots();
+                } else if (key === 'back') {
+                    pin = pin.slice(0, -1);
+                    updateDots();
+                } else if (pin.length < 6) {
+                    pin += key;
+                    updateDots();
+                    
+                    if (pin.length === 6) {
+                        setTimeout(checkPin, 300);
+                    }
+                }
+            });
+        });
+        
+        console.log('Lock screen test loaded. Try clicking buttons.');
+    </script>
+</body>
+</html>
