@@ -4607,11 +4607,17 @@
             let standardized = 0;
             
             games.forEach(game => {
+                // Log first game's full structure to see all fields
+                if (games.indexOf(game) === 0) {
+                    logToDebugConsole('First game structure:', 'info');
+                    logToDebugConsole(JSON.stringify(game, null, 2), 'info');
+                }
+                
                 if (game.developerId === currentDevId) {
                     standardized++;
                 } else {
                     needsStandardization++;
-                    logToDebugConsole(`⚠️ "${game.title}" has developerId: ${game.developerId || 'none'}`, 'warning');
+                    logToDebugConsole(`⚠️ "${game.title}" has developerId: ${game.developerId || 'none'}, developer: ${game.developer || 'none'}`, 'warning');
                 }
             });
             
