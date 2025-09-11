@@ -5634,9 +5634,29 @@
             }
         }
         
+        // Show signup form
+        function showSignup() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'block';
+            // Clear any previous errors
+            document.getElementById('signupError').textContent = '';
+            document.getElementById('signupError').style.display = 'none';
+        }
+        
+        // Show login form
+        function showLogin() {
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            // Clear any previous errors
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('loginError').style.display = 'none';
+        }
+        
         // Make functions globally available
         window.handleLogin = handleLogin;
         window.handleSignup = handleSignup;
+        window.showSignup = showSignup;
+        window.showLogin = showLogin;
         window.forceReloadWithoutCache = forceReloadWithoutCache;
         window.clearAllStorageAndReload = clearAllStorageAndReload;
         window.showAuthScreen = showAuthScreen;
