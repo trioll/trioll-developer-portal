@@ -3542,7 +3542,21 @@
             e.preventDefault();
             
             if (!awsInitialized) {
-                showAlert('AWS not initialized. Please wait or refresh the page.', 'error');
+                console.log('AWS not initialized on form submit, attempting to initialize...');
+                showAlert('Initializing AWS services, please wait...', 'info');
+                
+                // Try to initialize AWS
+                initializeAWS();
+                
+                // Wait 2 seconds and check again
+                setTimeout(() => {
+                    if (!awsInitialized) {
+                        showAlert('AWS not initialized. Please refresh the page and try again.', 'error');
+                        console.error('AWS initialization failed. Please check browser console for errors.');
+                    } else {
+                        showAlert('AWS initialized! Please try uploading again.', 'success');
+                    }
+                }, 2000);
                 return;
             }
             
@@ -5995,7 +6009,22 @@
             
             // Initialize AWS SDK for S3 uploads
             console.log('Initializing AWS SDK...');
-            initializeAWS();
+            // Add a small delay to ensure AWS SDK is loaded
+            setTimeout(() => {
+                if (typeof AWS === 'undefined') {
+                    console.error('AWS SDK not loaded! Check if the script tag is correct.');
+                    const statusEl = document.getElementById('awsStatus');
+                    const statusTextEl = document.getElementById('awsStatusText');
+                    if (statusEl && statusTextEl) {
+                        statusEl.className = 'aws-status error';
+                        statusTextEl.textContent = 'AWS SDK Failed';
+                        statusEl.style.display = 'flex';
+                    }
+                    return;
+                }
+                console.log('AWS SDK loaded, version:', AWS.VERSION);
+                initializeAWS();
+            }, 1000);
             
             // Check for existing token after a short delay to ensure storage is ready
             setTimeout(() => {
