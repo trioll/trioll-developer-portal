@@ -2396,6 +2396,21 @@
             const statusEl = document.getElementById('awsStatus');
             const statusTextEl = document.getElementById('awsStatusText');
             
+            console.log('InitializeAWS called');
+            console.log('AWS object exists?', typeof AWS !== 'undefined');
+            console.log('AWS.config exists?', typeof AWS !== 'undefined' && AWS.config);
+            
+            if (typeof AWS === 'undefined') {
+                console.error('AWS SDK is not defined! Cannot initialize.');
+                if (statusEl && statusTextEl) {
+                    statusEl.className = 'aws-status error';
+                    statusTextEl.textContent = 'AWS SDK Missing';
+                    statusEl.style.display = 'flex';
+                }
+                awsInitialized = false;
+                return;
+            }
+            
             try {
                 // Check if we have a Cognito token to use authenticated access
                 const idToken = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
@@ -6023,7 +6038,16 @@
                     return;
                 }
                 console.log('AWS SDK loaded, version:', AWS.VERSION);
-                initializeAWS();
+                
+                // Force AWS initialization even if there's an issue
+                try {
+                    initializeAWS();
+                } catch (initError) {
+                    console.error('Error during AWS initialization:', initError);
+                    // Set a flag to use API uploads instead
+                    window.useAPIUploads = true;
+                    awsInitialized = false;
+                }
             }, 1000);
             
             // Check for existing token after a short delay to ensure storage is ready
