@@ -1,6 +1,11 @@
 const AWS = require('aws-sdk');
 const { v4: uuidv4 } = require('uuid');
 
+// Configure AWS with environment variable support
+AWS.config.update({
+    region: process.env.AWS_REGION || 'us-east-1'
+});
+
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 const COMMENTS_TABLE = process.env.COMMENTS_TABLE || 'trioll-prod-comments';
 const GAMES_TABLE = process.env.GAMES_TABLE || 'trioll-prod-games';

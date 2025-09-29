@@ -14,6 +14,9 @@
     <!-- AWS SDK -->
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1563.0.min.js"></script>
     
+    <!-- Enhanced Analytics Module -->
+    <script src="analytics-enhanced.js" defer></script>
+    
     <style>
         /* Base styles and CSS variables */
         :root {
@@ -1435,6 +1438,10 @@
                     <div class="error-message" id="loginError"></div>
                     
                     <div class="auth-switch">
+                        <a href="#" onclick="showForgotPassword(); return false;">Forgot password?</a>
+                    </div>
+                    
+                    <div class="auth-switch">
                         Don't have an account? <a href="#" onclick="showSignup(); return false;">Create one</a>
                     </div>
                 </form>
@@ -1475,6 +1482,64 @@
                     
                     <div class="auth-switch">
                         Already have an account? <a href="#" onclick="showLogin(); return false;">Sign in</a>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Forgot Password Form -->
+            <div id="forgotPasswordForm" class="auth-form-section" style="display: none;">
+                <div class="auth-header">
+                    <h2>Reset Password</h2>
+                    <p>Enter your email to receive a reset code</p>
+                </div>
+                
+                <form class="auth-form" onsubmit="return handleForgotPassword(event)">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" id="forgotEmail" placeholder="developer@example.com" required>
+                    </div>
+                    
+                    <button type="submit" class="auth-btn" id="forgotBtn">Send Reset Code</button>
+                    
+                    <div class="error-message" id="forgotError"></div>
+                    <div class="success-message" id="forgotSuccess"></div>
+                    
+                    <div class="auth-switch">
+                        Remember your password? <a href="#" onclick="showLogin(); return false;">Sign in</a>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Reset Password Form -->
+            <div id="resetPasswordForm" class="auth-form-section" style="display: none;">
+                <div class="auth-header">
+                    <h2>Set New Password</h2>
+                    <p>Enter the code sent to your email and choose a new password</p>
+                </div>
+                
+                <form class="auth-form" onsubmit="return handleResetPassword(event)">
+                    <div class="form-group">
+                        <label class="form-label">Reset Code</label>
+                        <input type="text" class="form-input" id="resetCode" placeholder="Enter 6-digit code" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">New Password</label>
+                        <input type="password" class="form-input" id="newPassword" placeholder="Min 8 characters" required minlength="8">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Confirm Password</label>
+                        <input type="password" class="form-input" id="confirmPassword" placeholder="Repeat password" required minlength="8">
+                    </div>
+                    
+                    <button type="submit" class="auth-btn" id="resetBtn">Reset Password</button>
+                    
+                    <div class="error-message" id="resetError"></div>
+                    <div class="success-message" id="resetSuccess"></div>
+                    
+                    <div class="auth-switch">
+                        <a href="#" onclick="showLogin(); return false;">Back to Sign in</a>
                     </div>
                 </form>
             </div>
@@ -1945,7 +2010,7 @@
                 <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1.5rem;">Game Performance</h3>
-                        <button class="btn btn-primary" onclick="loadAnalyticsData()" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                        <button class="btn btn-primary" onclick="AnalyticsEnhanced ? AnalyticsEnhanced.init() : loadAnalyticsData()" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
                             🔄 Refresh Data
                         </button>
                     </div>
@@ -4102,17 +4167,37 @@
                              localStorage.getItem('developerToken') || 
                              (typeof auth !== 'undefined' && auth.token ? auth.token : null);
                 
-                if (!token) return 'dev_c84a7e'; // Default fallback
+                if (!token) return null; // No default - must be authenticated
                 
                 const parts = token.split('.');
                 if (parts.length === 3) {
                     const payload = JSON.parse(atob(parts[1]));
-                    return payload['custom:developer_id'] || payload.developerId || 'dev_c84a7e';
+                    return payload['custom:developer_id'] || payload.preferred_username || payload.developerId || null;
                 }
             } catch (e) {
                 console.error('Error getting developer ID:', e);
             }
-            return 'dev_c84a7e'; // Default fallback
+            return null; // No default - must be authenticated
+        }
+        
+        // Helper function to get developer email from token
+        function getDeveloperEmail() {
+            try {
+                const token = sessionStorage.getItem('developerToken') || 
+                             localStorage.getItem('developerToken') || 
+                             (typeof auth !== 'undefined' && auth.token ? auth.token : null);
+                
+                if (!token) return null;
+                
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1]));
+                    return payload.email || null;
+                }
+            } catch (e) {
+                console.error('Error getting developer email:', e);
+            }
+            return null;
         }
         
         function logToDebugConsole(message, type = 'info') {
@@ -4302,8 +4387,8 @@
             logToDebugConsole('Token found, fetching your games...', 'info');
             
             try {
-                // Get games list
-                const gamesResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
+                // Get developer's own games
+                const gamesResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/developers/games`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -4315,10 +4400,7 @@
                 }
                 
                 const gamesData = await gamesResponse.json();
-                const developerId = getDeveloperId();
-                const myGames = gamesData.games.filter(g => 
-                    g.developerId === developerId || g.developer === developerId
-                );
+                const myGames = gamesData.games || [];
                 
                 if (myGames.length === 0) {
                     logToDebugConsole('No games found for your developer ID', 'error');
@@ -4803,8 +4885,8 @@
                         name: 'Test Game Debug',
                         description: 'Debug test from developer portal',
                         category: 'Action',
-                        developer: 'freddiecaplin@hotmail.com',
-                        developerId: getDeveloperId() || 'dev_c84a7e',
+                        developer: getDeveloperEmail() || 'test@example.com',
+                        developerId: getDeveloperId() || 'test_developer',
                         deviceOrientation: 'Both',
                         controlStyle: 'Tap & Swipe Only',
                         gameStage: 'Released (In App Store)',
@@ -5646,10 +5728,139 @@
         // Show login form
         function showLogin() {
             document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('forgotPasswordForm').style.display = 'none';
+            document.getElementById('resetPasswordForm').style.display = 'none';
             document.getElementById('loginForm').style.display = 'block';
             // Clear any previous errors
             document.getElementById('loginError').textContent = '';
             document.getElementById('loginError').style.display = 'none';
+        }
+        
+        // Show forgot password form
+        function showForgotPassword() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('resetPasswordForm').style.display = 'none';
+            document.getElementById('forgotPasswordForm').style.display = 'block';
+            // Clear any previous errors
+            document.getElementById('forgotError').textContent = '';
+            document.getElementById('forgotError').style.display = 'none';
+            document.getElementById('forgotSuccess').textContent = '';
+            document.getElementById('forgotSuccess').style.display = 'none';
+        }
+        
+        // Show reset password form
+        function showResetPassword(email) {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('forgotPasswordForm').style.display = 'none';
+            document.getElementById('resetPasswordForm').style.display = 'block';
+            // Store email for password reset
+            window.resetEmail = email;
+            // Clear any previous errors
+            document.getElementById('resetError').textContent = '';
+            document.getElementById('resetError').style.display = 'none';
+            document.getElementById('resetSuccess').textContent = '';
+            document.getElementById('resetSuccess').style.display = 'none';
+        }
+        
+        // Handle forgot password
+        async function handleForgotPassword(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('forgotEmail').value;
+            const errorDiv = document.getElementById('forgotError');
+            const successDiv = document.getElementById('forgotSuccess');
+            const btn = document.getElementById('forgotBtn');
+            
+            // Clear previous messages
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            
+            // Show loading state
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            
+            try {
+                // Use Cognito forgotPassword directly
+                const result = await auth.forgotPassword(email);
+                
+                if (result.success) {
+                    successDiv.textContent = 'Reset code sent! Please check your email.';
+                    successDiv.style.display = 'block';
+                    
+                    // Show reset password form after 2 seconds
+                    setTimeout(() => {
+                        showResetPassword(email);
+                    }, 2000);
+                } else {
+                    errorDiv.textContent = result.message || 'Failed to send reset code';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Forgot password error:', error);
+                errorDiv.textContent = 'Failed to send reset code. Please try again.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Send Reset Code';
+            }
+        }
+        
+        // Handle reset password
+        async function handleResetPassword(event) {
+            event.preventDefault();
+            
+            const code = document.getElementById('resetCode').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const errorDiv = document.getElementById('resetError');
+            const successDiv = document.getElementById('resetSuccess');
+            const btn = document.getElementById('resetBtn');
+            
+            // Clear previous messages
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            
+            // Validate passwords match
+            if (newPassword !== confirmPassword) {
+                errorDiv.textContent = 'Passwords do not match';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // Show loading state
+            btn.disabled = true;
+            btn.textContent = 'Resetting...';
+            
+            try {
+                // Use stored email from forgot password flow
+                const email = window.resetEmail || document.getElementById('forgotEmail').value;
+                
+                const result = await auth.confirmPasswordReset(email, code, newPassword);
+                
+                if (result.success) {
+                    successDiv.textContent = 'Password reset successfully! Redirecting to login...';
+                    successDiv.style.display = 'block';
+                    
+                    // Redirect to login after 2 seconds
+                    setTimeout(() => {
+                        showLogin();
+                        // Pre-fill email
+                        document.getElementById('loginEmail').value = email;
+                    }, 2000);
+                } else {
+                    errorDiv.textContent = result.message || 'Failed to reset password';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Reset password error:', error);
+                errorDiv.textContent = 'Failed to reset password. Please try again.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Reset Password';
+            }
         }
         
         // Make functions globally available
@@ -5657,6 +5868,10 @@
         window.handleSignup = handleSignup;
         window.showSignup = showSignup;
         window.showLogin = showLogin;
+        window.showForgotPassword = showForgotPassword;
+        window.showResetPassword = showResetPassword;
+        window.handleForgotPassword = handleForgotPassword;
+        window.handleResetPassword = handleResetPassword;
         window.forceReloadWithoutCache = forceReloadWithoutCache;
         window.clearAllStorageAndReload = clearAllStorageAndReload;
         window.showAuthScreen = showAuthScreen;
@@ -5923,7 +6138,12 @@
         // Load analytics data when analytics tab is shown
         function initAnalytics() {
             console.log('Initializing analytics...');
-            loadAnalyticsData();
+            // Use enhanced analytics if available, fallback to original
+            if (window.AnalyticsEnhanced) {
+                AnalyticsEnhanced.init();
+            } else {
+                loadAnalyticsData();
+            }
             setupAnalyticsCharts();
         }
         

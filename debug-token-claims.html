@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Token Claims</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        pre {
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug Token Claims</h1>
+    
+    <div class="section">
+        <h2>Current Token Analysis</h2>
+        <div id="tokenAnalysis">Checking...</div>
+    </div>
+    
+    <div class="section">
+        <h2>What's Missing?</h2>
+        <div id="missingClaims"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Test API Call</h2>
+        <button onclick="testApiCall()">Test /developers/games</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        function getToken() {
+            return localStorage.getItem('idToken') || 
+                   sessionStorage.getItem('idToken') || 
+                   localStorage.getItem('developerToken') || 
+                   sessionStorage.getItem('developerToken') ||
+                   (window.auth && window.auth.token);
+        }
+        
+        function decodeToken(token) {
+            try {
+                const parts = token.split('.');
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+                return { header, payload };
+            } catch (e) {
+                return null;
+            }
+        }
+        
+        function analyzeToken() {
+            const token = getToken();
+            const analysisDiv = document.getElementById('tokenAnalysis');
+            const missingDiv = document.getElementById('missingClaims');
+            
+            if (!token) {
+                analysisDiv.innerHTML = '<p class="error">No token found!</p>';
+                return;
+            }
+            
+            const decoded = decodeToken(token);
+            if (!decoded) {
+                analysisDiv.innerHTML = '<p class="error">Invalid token format!</p>';
+                return;
+            }
+            
+            const { payload } = decoded;
+            
+            // Expected claims for developer portal
+            const expectedClaims = [
+                'custom:developer_id',
+                'custom:company_name', 
+                'custom:user_type',
+                'cognito:groups',
+                'preferred_username',
+                'website',
+                'profile'
+            ];
+            
+            const missing = [];
+            const found = {};
+            
+            expectedClaims.forEach(claim => {
+                if (payload[claim]) {
+                    found[claim] = payload[claim];
+                } else {
+                    missing.push(claim);
+                }
+            });
+            
+            // Build analysis HTML
+            let html = '<h3>Token Claims:</h3>';
+            html += '<pre>' + JSON.stringify(payload, null, 2) + '</pre>';
+            
+            html += '<h3>Key Information:</h3>';
+            html += `<p><strong>Email:</strong> ${payload.email || 'Not found'}</p>`;
+            html += `<p><strong>User ID (sub):</strong> ${payload.sub || 'Not found'}</p>`;
+            html += `<p><strong>Client ID (aud):</strong> ${payload.aud || 'Not found'}</p>`;
+            html += `<p class="${payload.aud === '5joogquqr4jgukp7mncgp3g23h' ? 'success' : 'warning'}">`;
+            html += `<strong>Using Developer Portal Client:</strong> ${payload.aud === '5joogquqr4jgukp7mncgp3g23h' ? 'YES ✅' : 'NO ❌'}</p>`;
+            
+            analysisDiv.innerHTML = html;
+            
+            // Missing claims
+            if (missing.length > 0) {
+                let missingHtml = '<h3 class="warning">Missing Claims:</h3>';
+                missingHtml += '<p>These claims are expected but not found in your token:</p>';
+                missingHtml += '<ul>';
+                missing.forEach(claim => {
+                    missingHtml += `<li><code>${claim}</code></li>`;
+                });
+                missingHtml += '</ul>';
+                missingHtml += '<p class="info"><strong>This is why the API returns 401!</strong></p>';
+                missingHtml += '<p>The Lambda function is looking for <code>custom:developer_id</code> but it\'s not in your token.</p>';
+                missingDiv.innerHTML = missingHtml;
+            } else {
+                missingDiv.innerHTML = '<p class="success">All expected claims found!</p>';
+            }
+            
+            // Add found custom claims
+            if (Object.keys(found).length > 0) {
+                missingDiv.innerHTML += '<h3>Found Claims:</h3><pre>' + JSON.stringify(found, null, 2) + '</pre>';
+            }
+        }
+        
+        async function testApiCall() {
+            const resultDiv = document.getElementById('apiResult');
+            const token = getToken();
+            
+            if (!token) {
+                resultDiv.innerHTML = '<p class="error">No token to test with!</p>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p class="info">Testing API call...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/developers/games`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                const text = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    data = text;
+                }
+                
+                resultDiv.innerHTML = `
+                    <h3>Response Status: ${response.status} ${response.statusText}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+                if (!response.ok && data.debug) {
+                    resultDiv.innerHTML += `
+                        <h3 class="warning">Debug Information from Lambda:</h3>
+                        <pre>${JSON.stringify(data.debug, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run on load
+        window.onload = () => {
+            analyzeToken();
+        };
+    </script>
+</body>
+</html>

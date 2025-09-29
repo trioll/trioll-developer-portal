@@ -5,9 +5,11 @@ const jwt = require('jsonwebtoken');
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 const cognito = new AWS.CognitoIdentityServiceProvider();
 
+// Use environment variables with production defaults
 const USERS_TABLE = process.env.USERS_TABLE || 'trioll-prod-users';
 const USER_POOL_ID = process.env.USER_POOL_ID || 'us-east-1_cLPH2acQd';
 const CLIENT_ID = process.env.CLIENT_ID || 'bft50gui77sdq2n4lcio4onql';
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Helper function to generate developer ID with increment for similar emails

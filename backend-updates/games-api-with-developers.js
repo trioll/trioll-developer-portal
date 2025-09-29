@@ -4,11 +4,12 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, ScanCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 
-const client = new DynamoDBClient({ region: 'us-east-1' });
+const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
 const dynamodb = DynamoDBDocumentClient.from(client);
 
-const GAMES_TABLE = 'trioll-prod-games';
-const USERS_TABLE = 'trioll-prod-users';
+// Use environment variables with production defaults
+const GAMES_TABLE = process.env.GAMES_TABLE || 'trioll-prod-games';
+const USERS_TABLE = process.env.USERS_TABLE || 'trioll-prod-users';
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',');
 
 // Dynamic CORS headers based on origin
@@ -25,6 +26,7 @@ const getCorsHeaders = (origin) => {
 // Helper function to extract developer info from JWT token
 const getDeveloperFromToken = (authHeader) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('No Bearer token in auth header');
     return null;
   }
   
@@ -32,14 +34,61 @@ const getDeveloperFromToken = (authHeader) => {
     const token = authHeader.split(' ')[1];
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
     
-    return {
+    console.log('Token payload:', JSON.stringify(payload, null, 2));
+    
+    // Check multiple possible locations for developer ID
+    let developerId = null;
+    let userType = 'player';
+    
+    // Priority order for finding developer ID:
+    // 1. custom:developer_id (Cognito custom attribute)
+    developerId = payload['custom:developer_id'] || null;
+    
+    // 2. Check if it's in the root level
+    if (!developerId) {
+      developerId = payload.developer_id || payload.developerId || null;
+    }
+    
+    // 3. Check groups for developer indication
+    const groups = payload['cognito:groups'] || [];
+    const isDeveloperGroup = groups.includes('developers') || groups.includes('developer');
+    
+    // 4. Check custom:user_type
+    userType = payload['custom:user_type'] || payload.user_type || 'player';
+    
+    // 5. If user has developer portal client ID, they're a developer
+    const clientId = payload.aud || payload.client_id;
+    const developerPortalClientId = '5joogquqr4jgukp7mncgp3g23h';
+    if (clientId === developerPortalClientId) {
+      userType = 'developer';
+      
+      // If no developer ID but using developer portal, we'll need to look it up
+      if (!developerId && payload.email) {
+        console.log(`Developer using portal but no developerId in token for: ${payload.email}`);
+        // Don't generate IDs here - they should come from the database
+        // The actual lookup will happen in the handler
+      }
+    }
+    
+    // 6. Final check - if they're in developer group but no ID
+    if (isDeveloperGroup && !developerId) {
+      userType = 'developer';
+      console.log('User is in developer group but has no developerId in token');
+    }
+    
+    const developer = {
       userId: payload.sub,
       email: payload.email,
-      developerId: payload['custom:developer_id'] || null,
-      companyName: payload['custom:company_name'] || null,
-      userType: payload['custom:user_type'] || 'player',
-      groups: payload['cognito:groups'] || []
+      developerId: developerId,
+      companyName: payload['custom:company_name'] || payload.company_name || payload.email?.split('@')[0] || null,
+      userType: userType,
+      groups: groups,
+      clientId: clientId
     };
+    
+    console.log('Extracted developer info:', JSON.stringify(developer, null, 2));
+    
+    return developer;
   } catch (error) {
     console.error('Token decode error:', error);
     return null;
@@ -124,31 +173,111 @@ exports.handler = async (event) => {
 
 // NEW: Handle developer's games
 async function handleDeveloperGames(authHeader) {
-  const developer = getDeveloperFromToken(authHeader);
+  let developer = getDeveloperFromToken(authHeader);
   
-  if (!developer || !developer.developerId) {
+  if (!developer) {
     return {
       statusCode: 401,
       headers: getCorsHeaders(''),
       body: JSON.stringify({ 
-        error: 'Unauthorized. Developer authentication required.' 
+        error: 'Unauthorized. No valid authentication token.'
+      })
+    };
+  }
+  
+  // If we have a developer but no developerId, try to look it up from the users table
+  if (developer.userType === 'developer' && !developer.developerId && developer.userId) {
+    console.log(`Looking up developerId for user: ${developer.userId}`);
+    
+    try {
+      // Query by userId (since table has composite key with createdAt)
+      const userParams = {
+        TableName: USERS_TABLE,
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': developer.userId
+        },
+        Limit: 1
+      };
+      
+      const userResult = await dynamodb.send(new QueryCommand(userParams));
+      
+      if (userResult.Items && userResult.Items.length > 0 && userResult.Items[0].developerId) {
+        developer.developerId = userResult.Items[0].developerId;
+        console.log(`Found developerId in users table: ${developer.developerId}`);
+      } else if (developer.email) {
+        // Try scanning by email as fallback
+        const scanParams = {
+          TableName: USERS_TABLE,
+          FilterExpression: 'email = :email',
+          ExpressionAttributeValues: {
+            ':email': developer.email
+          }
+        };
+        
+        const scanResult = await dynamodb.send(new ScanCommand(scanParams));
+        if (scanResult.Items && scanResult.Items.length > 0 && scanResult.Items[0].developerId) {
+          developer.developerId = scanResult.Items[0].developerId;
+          console.log(`Found developerId by email scan: ${developer.developerId}`);
+        }
+      }
+    } catch (lookupError) {
+      console.error('Error looking up developer ID:', lookupError);
+    }
+  }
+  
+  // Final check - must have developerId
+  if (!developer.developerId) {
+    return {
+      statusCode: 401,
+      headers: getCorsHeaders(''),
+      body: JSON.stringify({ 
+        error: 'Unauthorized. Developer ID not found.',
+        debug: {
+          userType: developer.userType,
+          hasUserId: !!developer.userId,
+          hasEmail: !!developer.email,
+          message: 'Developer ID not found in token or database'
+        }
       })
     };
   }
   
   try {
-    // Query games by developerId using GSI
-    const params = {
-      TableName: GAMES_TABLE,
-      IndexName: 'developerId-index',
-      KeyConditionExpression: 'developerId = :developerId',
-      ExpressionAttributeValues: {
-        ':developerId': developer.developerId
-      }
-    };
+    console.log(`Querying games for developer: ${developer.developerId}`);
     
-    const result = await dynamodb.send(new QueryCommand(params));
-    const games = (result.Items || []).map(transformGame);
+    // First try with the developerId-index
+    let games = [];
+    try {
+      const params = {
+        TableName: GAMES_TABLE,
+        IndexName: 'developerId-index',
+        KeyConditionExpression: 'developerId = :developerId',
+        ExpressionAttributeValues: {
+          ':developerId': developer.developerId
+        }
+      };
+      
+      const result = await dynamodb.send(new QueryCommand(params));
+      games = (result.Items || []).map(transformGame);
+      console.log(`Found ${games.length} games using developerId-index`);
+    } catch (indexError) {
+      console.log('developerId-index query failed, trying scan:', indexError.message);
+      
+      // Fallback to scan if index doesn't exist or fails
+      const scanParams = {
+        TableName: GAMES_TABLE,
+        FilterExpression: 'developerId = :developerId OR developer = :email',
+        ExpressionAttributeValues: {
+          ':developerId': developer.developerId,
+          ':email': developer.email
+        }
+      };
+      
+      const scanResult = await dynamodb.send(new ScanCommand(scanParams));
+      games = (scanResult.Items || []).map(transformGame);
+      console.log(`Found ${games.length} games using scan`);
+    }
     
     // Calculate aggregate stats
     const totalPlays = games.reduce((sum, game) => sum + (game.playCount || 0), 0);

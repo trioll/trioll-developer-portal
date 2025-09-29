@@ -265,12 +265,8 @@ exports.handler = async (event) => {
             console.log('No user found by userId, trying email');
           }
           
-          // Special case for freddiecaplin@hotmail.com
-          if (email.toLowerCase() === 'freddiecaplin@hotmail.com') {
-            userData = userData || {};
-            userData.developerId = userData.developerId || 'dev_c84a7e';
-            userData.companyName = userData.companyName || 'FreddieTrioll';
-          }
+          // No special cases - all users are treated equally
+          // Developer IDs must exist in the database
           
           if (userData?.developerId) {
             // Update Cognito attributes

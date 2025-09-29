@@ -8,7 +8,12 @@ const client = new DynamoDBClient({ region: 'us-east-1' });
 const dynamodb = DynamoDBDocumentClient.from(client);
 
 const GAMES_TABLE = process.env.GAMES_TABLE || 'trioll-prod-games';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret';
+
+// JWT_SECRET must be set as environment variable for security
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  console.error('CRITICAL: JWT_SECRET environment variable is not set');
+  throw new Error('JWT_SECRET environment variable is required');
+})();
 
 // CORS headers
 const headers = {

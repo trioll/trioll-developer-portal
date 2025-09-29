@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Developer Games Endpoint</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        pre {
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .game-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Developer Games Endpoint Test</h1>
+    
+    <div class="test-section">
+        <h2>Token Status</h2>
+        <div id="tokenStatus">Checking...</div>
+        <button onclick="checkToken()">Refresh Token Status</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test /developers/games Endpoint</h2>
+        <button onclick="testDeveloperGames()">Test Developer Games</button>
+        <div id="gamesResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Games List</h2>
+        <div id="gamesList"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        
+        // Get token from storage
+        function getToken() {
+            return localStorage.getItem('idToken') || 
+                   sessionStorage.getItem('idToken') || 
+                   localStorage.getItem('developerToken') || 
+                   sessionStorage.getItem('developerToken') ||
+                   (window.auth && window.auth.token);
+        }
+        
+        // Decode JWT token
+        function decodeToken(token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload;
+            } catch (e) {
+                return null;
+            }
+        }
+        
+        // Check token status
+        function checkToken() {
+            const token = getToken();
+            const statusDiv = document.getElementById('tokenStatus');
+            
+            if (!token) {
+                statusDiv.innerHTML = '<span class="error">No token found!</span>';
+                return;
+            }
+            
+            const payload = decodeToken(token);
+            if (!payload) {
+                statusDiv.innerHTML = '<span class="error">Invalid token format!</span>';
+                return;
+            }
+            
+            const expDate = new Date(payload.exp * 1000);
+            const isExpired = expDate < new Date();
+            
+            statusDiv.innerHTML = `
+                <div class="${isExpired ? 'error' : 'success'}">Token ${isExpired ? 'EXPIRED' : 'VALID'}</div>
+                <div class="info">Email: ${payload.email || 'Unknown'}</div>
+                <div class="info">User ID: ${payload.sub}</div>
+                <div class="info">Client ID: ${payload.aud || payload.client_id || 'Unknown'}</div>
+                <div class="info">Developer ID: ${payload['custom:developer_id'] || 'Not in token'}</div>
+                <div class="info">User Type: ${payload['custom:user_type'] || 'Not in token'}</div>
+                <div class="info">Expires: ${expDate.toLocaleString()}</div>
+                <details>
+                    <summary>Full Token Payload</summary>
+                    <pre>${JSON.stringify(payload, null, 2)}</pre>
+                </details>
+            `;
+        }
+        
+        // Test developer games endpoint
+        async function testDeveloperGames() {
+            const resultDiv = document.getElementById('gamesResult');
+            const gamesListDiv = document.getElementById('gamesList');
+            const token = getToken();
+            
+            if (!token) {
+                resultDiv.innerHTML = '<div class="error">No authentication token found!</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="info">Testing /developers/games endpoint...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/developers/games`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'X-App-Client': 'developer-portal'
+                    }
+                });
+                
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    data = responseText;
+                }
+                
+                if (!response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="error">Request Failed: ${response.status} ${response.statusText}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    
+                    // If we get debug info, display it
+                    if (data.debug) {
+                        resultDiv.innerHTML += `
+                            <div class="info">Debug Info:</div>
+                            <pre>${JSON.stringify(data.debug, null, 2)}</pre>
+                        `;
+                    }
+                    return;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="success">Success! Status: ${response.status}</div>
+                    <div class="info">Developer ID: ${data.developerId || 'Unknown'}</div>
+                    <div class="info">Games Found: ${data.games ? data.games.length : 0}</div>
+                `;
+                
+                // Display games
+                if (data.games && data.games.length > 0) {
+                    gamesListDiv.innerHTML = '<h3>Your Games:</h3>';
+                    data.games.forEach(game => {
+                        gamesListDiv.innerHTML += `
+                            <div class="game-card">
+                                <strong>${game.name || game.title}</strong>
+                                <div>ID: ${game.id || game.gameId}</div>
+                                <div>Category: ${game.category || 'Unknown'}</div>
+                                <div>Status: ${game.status || 'Unknown'}</div>
+                                <div>Plays: ${game.playCount || 0}, Likes: ${game.likeCount || 0}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    // Display stats if available
+                    if (data.stats) {
+                        gamesListDiv.innerHTML += `
+                            <div class="game-card">
+                                <strong>Overall Stats:</strong>
+                                <div>Total Plays: ${data.stats.totalPlays}</div>
+                                <div>Total Ratings: ${data.stats.totalRatings}</div>
+                                <div>Average Rating: ${data.stats.averageRating}⭐</div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    gamesListDiv.innerHTML = '<div class="info">No games found for this developer</div>';
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">Error: ${error.message}</div>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        }
+        
+        // Run on page load
+        window.onload = () => {
+            checkToken();
+        };
+    </script>
+</body>
+</html>

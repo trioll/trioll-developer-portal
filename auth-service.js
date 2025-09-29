@@ -567,6 +567,72 @@ class AuthService {
             this.logout();
         }
     }
+    
+    // Forgot password - sends reset code to email
+    async forgotPassword(email) {
+        try {
+            const response = await fetch(`${this.apiEndpoint}/developers/forgot-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-App-Client': 'developer-portal'
+                },
+                body: JSON.stringify({ email })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to send reset code');
+            }
+
+            return {
+                success: true,
+                message: data.message || 'Reset code sent successfully'
+            };
+        } catch (error) {
+            console.error('Forgot password error:', error);
+            return {
+                success: false,
+                message: error.message || 'Failed to send reset code'
+            };
+        }
+    }
+    
+    // Confirm password reset with code
+    async confirmPasswordReset(email, code, newPassword) {
+        try {
+            const response = await fetch(`${this.apiEndpoint}/developers/reset-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-App-Client': 'developer-portal'
+                },
+                body: JSON.stringify({
+                    email,
+                    code,
+                    newPassword
+                })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to reset password');
+            }
+
+            return {
+                success: true,
+                message: data.message || 'Password reset successfully'
+            };
+        } catch (error) {
+            console.error('Password reset error:', error);
+            return {
+                success: false,
+                message: error.message || 'Failed to reset password'
+            };
+        }
+    }
 }
 
 // Create global auth instance
