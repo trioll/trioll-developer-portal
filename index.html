@@ -5993,10 +5993,9 @@
                 }
             }, 1000);
             
-            // REMOVED: AWS SDK initialization not needed for developer portal
-            // The portal uses API endpoints, not direct AWS access
-            // console.log('Initializing AWS SDK...');
-            // initializeAWS();
+            // Initialize AWS SDK for S3 uploads
+            console.log('Initializing AWS SDK...');
+            initializeAWS();
             
             // Check for existing token after a short delay to ensure storage is ready
             setTimeout(() => {
