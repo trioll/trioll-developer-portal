@@ -136,10 +136,12 @@ exports.getGames = async (event) => {
   console.log('GetGames request:', { limit, cursor, platform });
   
   try {
-    // Use Scan temporarily until index is ready
+    // Use Query on status-uploadedAt-index for efficient retrieval
     const params = {
       TableName: GAMES_TABLE,
-      FilterExpression: '#status = :status AND #version = :version',
+      IndexName: 'status-uploadedAt-index',
+      KeyConditionExpression: '#status = :status',
+      FilterExpression: '#version = :version',
       ExpressionAttributeNames: {
         '#status': 'status',
         '#version': 'version'
@@ -148,14 +150,15 @@ exports.getGames = async (event) => {
         ':status': 'active',
         ':version': '1.0.0'
       },
-      Limit: limit
+      Limit: limit,
+      ScanIndexForward: false // Sort by uploadedAt descending (newest first)
     };
     
     if (cursor) {
       params.ExclusiveStartKey = JSON.parse(Buffer.from(cursor, 'base64').toString());
     }
     
-    const result = await dynamodb.send(new ScanCommand(params));
+    const result = await dynamodb.send(new QueryCommand(params));
     
     const games = result.Items.map(game => transformGameForResponse(game));
     

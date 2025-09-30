@@ -1,8 +1,13 @@
 // Developer Portal Authentication Service
 class AuthService {
     constructor() {
-        this.apiEndpoint = 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
-        this.clientId = '5joogquqr4jgukp7mncgp3g23h'; // Developer portal client ID
+        // Use configuration from config.js if available, fallback to hardcoded
+        this.apiEndpoint = (typeof TriollConfig !== 'undefined' && TriollConfig.aws) 
+            ? TriollConfig.aws.apiEndpoint 
+            : 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+        this.clientId = (typeof TriollConfig !== 'undefined' && TriollConfig.cognito) 
+            ? TriollConfig.cognito.clientIds.developerPortal 
+            : '5joogquqr4jgukp7mncgp3g23h'; // Developer portal client ID
         
         // Check both localStorage (remember me) and sessionStorage
         this.token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');

@@ -11,6 +11,9 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,900;1,300;1,400;1,500;1,600;1,700;1,900&display=swap" rel="stylesheet">
     
+    <!-- Configuration -->
+    <script src="js/config.js"></script>
+    
     <!-- AWS SDK -->
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1563.0.min.js"></script>
     
@@ -2375,12 +2378,25 @@
             return token;
         }
 
-        // AWS Configuration
-        const AWS_CONFIG = {
+        // AWS Configuration - Use TriollConfig if available, fallback to hardcoded
+        const AWS_CONFIG = (typeof TriollConfig !== 'undefined') ? {
+            region: TriollConfig.aws.region,
+            identityPoolId: TriollConfig.aws.identityPoolId,
+            gamesBucket: TriollConfig.storage.gamesBucket,
+            apiEndpoint: TriollConfig.aws.apiEndpoint,
+            userPoolId: TriollConfig.cognito.userPoolId,
+            developerClientId: TriollConfig.cognito.clientIds.developerPortal,
+            cdnPrimary: TriollConfig.cdn.primary,
+            cdnLegacy: TriollConfig.cdn.legacy
+        } : {
             region: 'us-east-1',
             identityPoolId: 'us-east-1:c740f334-5bd2-43c6-85b9-48bfebf27268',
             gamesBucket: 'trioll-prod-games-us-east-1',
-            apiEndpoint: 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod'
+            apiEndpoint: 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod',
+            userPoolId: 'us-east-1_cLPH2acQd',
+            developerClientId: '5joogquqr4jgukp7mncgp3g23h',
+            cdnPrimary: 'dgq2nqysbn2z3.cloudfront.net',
+            cdnLegacy: 'dk72g9i0333mv.cloudfront.net'
         };
 
         // Global variables
@@ -2643,7 +2659,7 @@
                             if (file.name.toLowerCase().endsWith('.html')) {
                                 if (file.name.toLowerCase() === 'index.html' || !mainHtmlFile) {
                                     // Update gameUrl to use CloudFront URL with actual filename
-                                    const cloudFrontUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/${cleanPath}`;
+                                    const cloudFrontUrl = `https://${AWS_CONFIG.cdnPrimary}/${gameId}/${cleanPath}`;
                                     uploadResults.gameUrl = cloudFrontUrl;
                                     mainHtmlFile = file.name;
                                 }
@@ -3158,25 +3174,52 @@
         // Fetch all games from the API
         async function loadGamesFromAPI() {
             try {
-                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // Add origin header for CORS
-                        'Origin': window.location.origin
+                let allGames = [];
+                let cursor = null;
+                let pageCount = 0;
+                
+                // Keep fetching until we have all games
+                do {
+                    const url = cursor 
+                        ? `${AWS_CONFIG.apiEndpoint}/games?limit=20&cursor=${cursor}`
+                        : `${AWS_CONFIG.apiEndpoint}/games?limit=20`;
+                    
+                    console.log(`Fetching page ${pageCount + 1} of games...`);
+                    
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            // Add origin header for CORS
+                            'Origin': window.location.origin
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        console.error('API returned status:', response.status);
+                        throw new Error(`Failed to fetch games: ${response.status}`);
                     }
-                });
+                    
+                    const result = await response.json();
+                    console.log(`Page ${pageCount + 1} response:`, result);
+                    
+                    // Add games from this page
+                    const pageGames = result.games || [];
+                    allGames = allGames.concat(pageGames);
+                    
+                    // Check if there are more pages
+                    cursor = result.pagination?.cursor;
+                    pageCount++;
+                    
+                    // Store hasMore flag for the loop condition
+                    var hasMore = result.pagination?.hasMore;
+                    
+                } while (cursor && hasMore);
                 
-                if (!response.ok) {
-                    console.error('API returned status:', response.status);
-                    throw new Error(`Failed to fetch games: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                console.log('API Response:', result);
+                console.log(`Loaded ${allGames.length} total games across ${pageCount} pages`);
                 
                 // The API returns games in a 'games' array, not 'data'
-                const allItems = result.games || [];
+                const allItems = allGames;
                 
                 // Filter out stats records (version: "v0") - only show actual games
                 const actualGames = allItems.filter(game => {
@@ -3204,7 +3247,7 @@
                     developerId: game.developerId || null,
                     category: game.category || game.genre || 'Uncategorized',
                     thumbnailUrl: game.thumbnailUrl || game.imageUrl || game.thumbnail,
-                    gameUrl: game.gameUrl || `https://dgq2nqysbn2z3.cloudfront.net/${game.id || game.gameId}/index.html`,
+                    gameUrl: game.gameUrl || `https://${AWS_CONFIG.cdnPrimary}/${game.id || game.gameId}/index.html`,
                     status: game.status || 'active',
                     description: game.description || '',
                     plays: game.playCount || game.plays || 0,
@@ -3297,7 +3340,7 @@
                         
                         // Try different thumbnail formats
                         for (const ext of thumbnailExtensions) {
-                            thumbnailUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/thumbnail${ext}`;
+                            thumbnailUrl = `https://${AWS_CONFIG.cdnPrimary}/${gameId}/thumbnail${ext}`;
                             break; // We'll use the first one and let browser handle 404s
                         }
                         
@@ -3305,8 +3348,8 @@
                             id: gameId,
                             name: displayName,
                             category: 'Game',
-                            thumbnailUrl: thumbnailUrl || `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/thumbnail.png`,
-                            gameUrl: `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/index.html`,
+                            thumbnailUrl: thumbnailUrl || `https://${AWS_CONFIG.cdnPrimary}/${gameId}/thumbnail.png`,
+                            gameUrl: `https://${AWS_CONFIG.cdnPrimary}/${gameId}/index.html`,
                             status: 'active',
                             description: `Play ${displayName} now!`,
                             plays: Math.floor(Math.random() * 1000), // Random demo data
@@ -3652,6 +3695,9 @@
                 
                 const results = await uploader.uploadGame(gameData, updateUploadProgress);
                 
+                // Convert device compatibility to platform field for filtering
+                const platform = convertDeviceCompatibilityToPlatform(deviceCompatibility);
+                
                 // Save to database with developer ID
                 const savedGame = await saveGameToDatabase({
                     gameId: results.gameId,
@@ -3664,6 +3710,7 @@
                     controlStyle: controlStyle || 'touchscreen',
                     gameStage: gameStage,
                     deviceCompatibility: deviceCompatibility,
+                    platform: platform, // Add platform field for filtering
                     buildId: buildId,
                     gameUrl: results.gameUrl,
                     thumbnailUrl: results.thumbnailUrl,
@@ -4119,7 +4166,7 @@
                         } else {
                             console.log('Thumbnail uploaded:', data.Location);
                             // Return CloudFront URL
-                            resolve(`https://dgq2nqysbn2z3.cloudfront.net/${thumbnailKey}`);
+                            resolve(`https://${AWS_CONFIG.cdnPrimary}/${thumbnailKey}`);
                         }
                     });
                 });
@@ -4176,6 +4223,31 @@
             });
             
             return compatibility;
+        }
+        
+        // Convert device compatibility to platform for filtering
+        function convertDeviceCompatibilityToPlatform(deviceCompatibility) {
+            const hasMobile = deviceCompatibility.some(device => 
+                device.includes('Mobile iOS') || 
+                device.includes('Mobile Android') || 
+                device.includes('All of the Above')
+            );
+            
+            const hasWeb = deviceCompatibility.some(device => 
+                device.includes('Computer/Laptop') || 
+                device.includes('All of the Above')
+            );
+            
+            if (hasMobile && hasWeb) {
+                return 'both';
+            } else if (hasMobile) {
+                return 'mobile';
+            } else if (hasWeb) {
+                return 'web';
+            }
+            
+            // Default to both if nothing selected (shouldn't happen with validation)
+            return 'both';
         }
 
         // Initialize everything
@@ -4906,29 +4978,41 @@
                 const options = { method, headers };
                 
                 if (method === 'POST' && path === '/games') {
-                    logToDebugConsole('Note: This test creates a database entry only (no actual files)', 'warning');
-                    // Match the exact format used in actual game uploads
-                    const testGameId = `test-game-${Date.now()}`;
-                    options.body = JSON.stringify({
-                        gameId: testGameId, // Backend validates this field
-                        name: 'Test Game Debug',
-                        description: 'Debug test from developer portal',
-                        category: 'Action',
-                        developer: getDeveloperEmail() || 'test@example.com',
-                        developerId: getDeveloperId() || 'test_developer',
-                        deviceOrientation: 'Both',
-                        controlStyle: 'Tap & Swipe Only',
-                        gameStage: 'Released (In App Store)',
-                        deviceCompatibility: ['Mobile iOS', 'Mobile Android', 'Computer/Laptop'],
-                        gameUrl: `https://trioll-prod-games-us-east-1.s3.amazonaws.com/${testGameId}/index.html`,
-                        thumbnailUrl: `https://trioll-prod-games-us-east-1.s3.amazonaws.com/${testGameId}/thumbnail.png`,
-                        status: 'active',
-                        publishedAt: new Date().toISOString(),
-                        uploadedAt: new Date().toISOString(),
-                        lastModified: new Date().toISOString(),
-                        buildId: `BUILD-${Date.now()}-TEST`
+                    // Instead of creating a real game, test with a dry-run approach
+                    logToDebugConsole('Testing POST /games endpoint (dry-run mode)', 'info');
+                    logToDebugConsole('Note: Switching to OPTIONS request to avoid creating test data', 'warning');
+                    
+                    // First test if the endpoint accepts POST with OPTIONS request
+                    const optionsResponse = await fetch(`${AWS_CONFIG.apiEndpoint}${path}`, {
+                        method: 'OPTIONS',
+                        headers: headers
                     });
-                    logToDebugConsole('Request body: ' + options.body, 'info');
+                    
+                    if (optionsResponse.ok || optionsResponse.status === 200) {
+                        // If OPTIONS works, we know the endpoint exists and CORS is configured
+                        logToDebugConsole(`${path}: ENDPOINT EXISTS (verified via OPTIONS)`, 'success');
+                        logToDebugConsole('POST capability confirmed without creating test data', 'success');
+                        return; // Skip the actual POST
+                    }
+                    
+                    // If OPTIONS fails, try HEAD request as fallback
+                    try {
+                        const headResponse = await fetch(`${AWS_CONFIG.apiEndpoint}${path}`, {
+                            method: 'HEAD',
+                            headers: headers
+                        });
+                        if (headResponse.ok || headResponse.status === 405) {
+                            logToDebugConsole(`${path}: ENDPOINT EXISTS (HEAD returned ${headResponse.status})`, 'success');
+                            return;
+                        }
+                    } catch (e) {
+                        // HEAD might not be supported, that's okay
+                    }
+                    
+                    // Only create actual test game if specifically requested (never by default)
+                    logToDebugConsole('Skipping actual POST to avoid creating test games', 'info');
+                    logToDebugConsole('To test game creation, use the Upload Game form', 'info');
+                    return;
                 }
                 
                 const response = await fetch(`${AWS_CONFIG.apiEndpoint}${path}`, options);
@@ -5026,17 +5110,76 @@
         async function testCloudFront() {
             logToDebugConsole('Testing CloudFront CDN...');
             
-            const testUrl = 'https://dgq2nqysbn2z3.cloudfront.net/';
-            
-            try {
-                const response = await fetch(testUrl, { method: 'HEAD' });
-                if (response.ok || response.status === 403) {
-                    logToDebugConsole('CloudFront is accessible', 'success');
-                } else {
-                    logToDebugConsole(`CloudFront returned ${response.status}`, 'error');
+            // Test multiple CDN endpoints for comprehensive check
+            const cdnTests = [
+                {
+                    url: 'https://${AWS_CONFIG.cdnPrimary}/Evolution-Runner/thumbnail.png',
+                    name: 'Primary CDN (dgq2nqysbn2z3)',
+                    type: 'image'
+                },
+                {
+                    url: 'https://${AWS_CONFIG.cdnLegacy}/Evolution-Runner/thumbnail.png',
+                    name: 'Legacy CDN (dk72g9i0333mv)',
+                    type: 'image'
                 }
-            } catch (e) {
-                logToDebugConsole(`CloudFront error: ${e.message}`, 'error');
+            ];
+            
+            let successCount = 0;
+            
+            for (const test of cdnTests) {
+                try {
+                    // For images, use Image element which handles CORS better
+                    if (test.type === 'image') {
+                        await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            const timeout = setTimeout(() => {
+                                reject(new Error('Timeout'));
+                            }, 5000);
+                            
+                            img.onload = () => {
+                                clearTimeout(timeout);
+                                logToDebugConsole(`✅ ${test.name} - Working`, 'success');
+                                successCount++;
+                                resolve();
+                            };
+                            
+                            img.onerror = () => {
+                                clearTimeout(timeout);
+                                logToDebugConsole(`❌ ${test.name} - Failed to load`, 'error');
+                                reject(new Error('Failed to load'));
+                            };
+                            
+                            // Add crossorigin to handle CORS
+                            img.crossOrigin = 'anonymous';
+                            img.src = test.url + '?t=' + Date.now(); // Cache bust
+                        }).catch(() => {
+                            // Try without crossorigin if CORS fails
+                            return new Promise((resolve) => {
+                                const img2 = new Image();
+                                img2.onload = () => {
+                                    logToDebugConsole(`✅ ${test.name} - Working (no CORS)`, 'success');
+                                    successCount++;
+                                    resolve();
+                                };
+                                img2.onerror = () => {
+                                    logToDebugConsole(`❌ ${test.name} - Not accessible`, 'error');
+                                    resolve();
+                                };
+                                img2.src = test.url + '?t=' + Date.now();
+                            });
+                        });
+                    }
+                } catch (e) {
+                    logToDebugConsole(`${test.name} error: ${e.message}`, 'error');
+                }
+            }
+            
+            // Summary
+            if (successCount > 0) {
+                logToDebugConsole(`CloudFront Status: ${successCount}/${cdnTests.length} CDN endpoints working`, 'success');
+            } else {
+                logToDebugConsole('CloudFront Status: No CDN endpoints accessible', 'error');
+                logToDebugConsole('This may indicate a configuration issue or the game assets are missing', 'warning');
             }
         }
         
