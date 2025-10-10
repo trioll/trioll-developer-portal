@@ -14,8 +14,10 @@
     <!-- Configuration -->
     <script src="js/config.js"></script>
     
-    <!-- AWS SDK -->
-    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1563.0.min.js"></script>
+    <!-- AWS SDK removed - using API-based uploads instead -->
+    
+    <!-- Debug Tests - Remove in production -->
+    <script src="debug-tests.js?v=1.0.0"></script>
     
     <!-- Enhanced Analytics Module -->
     <script src="analytics-enhanced.js" defer></script>
@@ -1354,11 +1356,11 @@
     <!-- Starfield Canvas Background -->
     <canvas class="starfield-canvas" id="starfieldCanvas"></canvas>
 
-    <!-- AWS Status Indicator (Hidden - Portal uses API endpoints) -->
-    <!-- <div id="awsStatus" class="aws-status" style="display: none;">
+    <!-- API Mode Status Indicator -->
+    <div id="awsStatus" class="aws-status connected" style="display: flex;">
         <span class="aws-status-dot"></span>
-        <span id="awsStatusText">Initializing...</span>
-    </div> -->
+        <span id="awsStatusText">API Upload Ready</span>
+    </div>
 
     <!-- Lock Screen -->
     <div id="lockScreen" class="lock-screen">
@@ -2044,6 +2046,10 @@
         <section id="debug" class="section">
             <div class="container">
                 <h2 style="font-size: 2rem; margin-bottom: 2rem;">🛠️ Developer Debug Dashboard</h2>
+                <div style="background: #ff6b6b; color: white; padding: 10px; border-radius: 5px; margin-bottom: 1rem;">
+                    <strong>Version: <span id="portalVersion">Unknown</span></strong> | 
+                    <strong>Cache Status: <span id="cacheStatus">Checking...</span></strong>
+                </div>
                 
                 <!-- Real-time Status Grid -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
@@ -2085,7 +2091,7 @@
                         <div id="s3StatusCard">
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
                                 <span id="s3StatusIcon">✅</span>
-                                <span id="s3StatusText">API Mode</span>
+                                <span id="s3StatusText">API Upload Ready</span>
                             </div>
                             <small id="s3StatusDetails" style="color: #888; display: block; margin-top: 0.5rem;">Portal uses API endpoints</small>
                         </div>
@@ -2110,6 +2116,15 @@
                         </button>
                         <button class="btn btn-primary" onclick="testGameUpdateDirect()">
                             🎮 Test Game Update
+                        </button>
+                        <button class="btn btn-warning" onclick="debugErrorSource()">
+                            🐛 Debug Error Source
+                        </button>
+                        <button class="btn btn-info" onclick="testAPIUpload()">
+                            📤 Test API Upload
+                        </button>
+                        <button class="btn btn-danger" onclick="window.location.href='test-minimal.html'">
+                            🧪 Minimal Test Page
                         </button>
                     </div>
                 </div>
@@ -2144,6 +2159,7 @@
                             <button class="btn btn-sm" onclick="testAPIUpload()">API Upload Test</button>
                             <button class="btn btn-sm" onclick="testCloudFront()">CloudFront CDN</button>
                             <button class="btn btn-sm" onclick="testGameAssets()">Game Assets Check</button>
+                            <button class="btn btn-sm btn-warning" onclick="testAWSDisconnection()">🔍 AWS Disconnect Check</button>
                         </div>
                     </div>
                     
@@ -2400,15 +2416,51 @@
         };
 
         // Global variables
-        let s3 = null;
-        let awsInitialized = false;
+        // AWS variables removed - using API-based uploads
+        let awsInitialized = false; // Always false now
         let uploadedGames = [];
+        
+        // Version indicator - UPDATE THIS when making changes
+        const PORTAL_VERSION = '2.0.1-no-aws-fixed';
+        console.log(`\ud83d\ude80 Trioll Developer Portal v${PORTAL_VERSION} loaded`);
+        
+        // Global error interceptor
+        window.addEventListener('error', function(event) {
+            if (event.message && event.message.includes('AWS')) {
+                console.error('GLOBAL ERROR WITH AWS:', event.message);
+                console.error('Error at:', event.filename, 'line:', event.lineno);
+            }
+        });
+        
+        // Intercept alert() calls
+        const originalAlert = window.alert;
+        window.alert = function(msg) {
+            if (msg && typeof msg === 'string' && msg.includes('AWS')) {
+                console.error('ALERT() CALLED WITH AWS MESSAGE:', msg);
+                console.trace();
+            }
+            return originalAlert.apply(this, arguments);
+        };
 
         // Test editGame availability on load
         console.log('EditGame function available:', typeof window.editGame);
         
         // Initialize AWS
         function initializeAWS() {
+            // Function disabled - AWS SDK removed, using API-based uploads
+            console.error('WARNING: initializeAWS was called but should not be!');
+            console.trace('Call stack:');
+            
+            // Log to debug console if available
+            if (typeof logToDebugConsole === 'function') {
+                logToDebugConsole('ERROR: initializeAWS called - AWS SDK removed!', 'error');
+                logToDebugConsole('This function should not be called', 'error');
+                const stack = new Error().stack;
+                logToDebugConsole('Call stack: ' + stack, 'error');
+            }
+            
+            return; // Exit immediately - DO NOT PROCEED
+            
             const statusEl = document.getElementById('awsStatus');
             const statusTextEl = document.getElementById('awsStatusText');
             
@@ -2487,56 +2539,249 @@
                             AWS.config.credentials.refresh((guestError) => {
                                 if (guestError) {
                                     console.error('Guest access also failed:', guestError);
-                                    statusEl.className = 'aws-status error';
-                                    statusTextEl.textContent = 'AWS Offline';
+                                    if (statusEl && statusTextEl) {
+                                        statusEl.className = 'aws-status error';
+                                        statusTextEl.textContent = 'AWS Offline';
+                                    }
                                     awsInitialized = false;
                                 } else {
                                     console.log('Guest access successful');
-                                    statusEl.className = 'aws-status connected';
-                                    statusTextEl.textContent = 'AWS Connected (Guest Fallback)';
+                                    if (statusEl && statusTextEl) {
+                                        statusEl.className = 'aws-status connected';
+                                        statusTextEl.textContent = 'AWS Connected (Guest Fallback)';
+                                    }
                                     s3 = new AWS.S3({
                                         apiVersion: '2006-03-01',
                                         params: { Bucket: AWS_CONFIG.gamesBucket }
                                     });
+                                    console.log('S3 initialized (guest fallback):', s3);
                                     awsInitialized = true;
+                                    console.log('awsInitialized set to true (guest fallback)');
                                 }
-                                statusEl.style.display = 'flex';
+                                if (statusEl) {
+                                    statusEl.style.display = 'flex';
+                                }
                             });
                         } else {
-                            statusEl.className = 'aws-status error';
-                            statusTextEl.textContent = 'AWS Offline';
+                            if (statusEl && statusTextEl) {
+                                statusEl.className = 'aws-status error';
+                                statusTextEl.textContent = 'AWS Offline';
+                            }
                             awsInitialized = false;
                         }
                     } else {
                         console.log('AWS credentials loaded successfully');
                         console.log('Identity ID:', AWS.config.credentials.identityId);
-                        statusEl.className = 'aws-status connected';
-                        statusTextEl.textContent = idToken ? 'AWS Connected (Auth)' : 'AWS Connected (Guest)';
+                        if (statusEl && statusTextEl) {
+                            statusEl.className = 'aws-status connected';
+                            statusTextEl.textContent = idToken ? 'AWS Connected (Auth)' : 'AWS Connected (Guest)';
+                        }
                         s3 = new AWS.S3({
                             apiVersion: '2006-03-01',
                             params: { Bucket: AWS_CONFIG.gamesBucket }
                         });
+                        console.log('S3 initialized (authenticated/guest):', s3);
                         awsInitialized = true;
+                        console.log('awsInitialized set to true:', awsInitialized);
                     }
-                    statusEl.style.display = 'flex';
+                    if (statusEl) {
+                        statusEl.style.display = 'flex';
+                    }
                 });
             } catch (error) {
                 console.error('Error initializing AWS:', error);
-                statusEl.className = 'aws-status error';
-                statusTextEl.textContent = 'AWS Error';
-                statusEl.style.display = 'flex';
+                if (statusEl && statusTextEl) {
+                    statusEl.className = 'aws-status error';
+                    statusTextEl.textContent = 'AWS Error';
+                    statusEl.style.display = 'flex';
+                }
                 awsInitialized = false;
             }
         }
 
+        // API Game Uploader Class (Uses new API endpoints for file uploads)
+        class APIGameUploader {
+            constructor() {
+                console.log('Using API-based game uploader');
+                this.apiEndpoint = AWS_CONFIG.apiEndpoint || 'https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod';
+            }
+            
+            generateGameId(gameName) {
+                const timestamp = Date.now();
+                const sanitized = gameName.toLowerCase()
+                    .replace(/[^a-z0-9]/g, '-')
+                    .replace(/-+/g, '-')
+                    .replace(/^-|-$/g, '');
+                return `${sanitized}-${timestamp}`;
+            }
+            
+            async uploadGame(gameData, onProgress) {
+                const { name, files, thumbnail, metadata } = gameData;
+                const gameId = this.generateGameId(name);
+                const uploadResults = {
+                    gameId,
+                    gameUrl: null,
+                    thumbnailUrl: null,
+                    s3Folder: gameId,
+                    files: []
+                };
+                
+                try {
+                    // Update status
+                    this.updateStatus('Initializing upload...', onProgress, 5);
+                    
+                    // Get auth token
+                    const authToken = validateAndGetToken();
+                    if (!authToken) {
+                        throw new Error('Authentication required for upload');
+                    }
+                    
+                    // Prepare file list including thumbnail
+                    const allFiles = [...files];
+                    if (thumbnail) {
+                        allFiles.push(thumbnail);
+                    }
+                    
+                    // Step 1: Initialize upload session and get presigned URLs
+                    this.updateStatus('Getting upload URLs...', onProgress, 10);
+                    
+                    const initResponse = await fetch(`${this.apiEndpoint}/upload/initiate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({
+                            gameId: gameId,
+                            files: allFiles.map(file => ({
+                                name: file.name,
+                                size: file.size,
+                                type: file.type || 'application/octet-stream'
+                            }))
+                        })
+                    });
+
+                    if (!initResponse.ok) {
+                        const error = await initResponse.text();
+                        throw new Error(`Failed to initialize upload: ${error}`);
+                    }
+
+                    const { uploadUrls } = await initResponse.json();
+                    
+                    // Step 2: Upload each file to its presigned URL
+                    let uploadedCount = 0;
+                    const totalFiles = allFiles.length;
+
+                    for (let i = 0; i < allFiles.length; i++) {
+                        const file = allFiles[i];
+                        const uploadInfo = uploadUrls[i];
+                        
+                        const progressPercent = 10 + (uploadedCount / totalFiles) * 70;
+                        this.updateStatus(`Uploading ${file.name}... (${uploadedCount + 1}/${totalFiles})`, onProgress, progressPercent);
+
+                        // Upload file directly to S3 using presigned URL
+                        const uploadResponse = await fetch(uploadInfo.uploadUrl, {
+                            method: 'PUT',
+                            body: file,
+                            headers: {
+                                'Content-Type': file.type || 'application/octet-stream'
+                            }
+                        });
+
+                        if (!uploadResponse.ok) {
+                            throw new Error(`Failed to upload ${file.name}`);
+                        }
+
+                        uploadResults.files.push({
+                            name: file.name,
+                            key: uploadInfo.key
+                        });
+                        
+                        // Track thumbnail URL if this was the thumbnail
+                        if (file === thumbnail) {
+                            const extension = file.name.split('.').pop();
+                            uploadResults.thumbnailUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/thumbnail.${extension}`;
+                        }
+
+                        uploadedCount++;
+                    }
+
+                    // Step 3: Complete the upload and get final URLs
+                    this.updateStatus('Finalizing upload...', onProgress, 85);
+                    
+                    // Determine main file
+                    const mainFile = this.getMainFile(uploadResults.files);
+                    
+                    const completeResponse = await fetch(`${this.apiEndpoint}/upload/complete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({
+                            gameId: gameId,
+                            mainFile: mainFile
+                        })
+                    });
+
+                    if (!completeResponse.ok) {
+                        const error = await completeResponse.text();
+                        throw new Error(`Failed to complete upload: ${error}`);
+                    }
+
+                    const result = await completeResponse.json();
+                    
+                    // Update results with URLs from API
+                    uploadResults.gameUrl = result.urls.gameUrl || `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/${mainFile}`;
+                    if (result.urls.trialUrl) {
+                        uploadResults.trialUrl = result.urls.trialUrl;
+                    }
+                    
+                    this.updateStatus('Upload completed successfully!', onProgress, 100);
+
+                    return uploadResults;
+
+                } catch (error) {
+                    console.error('Upload failed:', error);
+                    this.updateStatus(`Upload failed: ${error.message}`, onProgress, 0);
+                    throw error;
+                }
+            }
+            
+            getMainFile(uploadedFiles) {
+                // Look for index.html or main.html
+                const htmlFiles = uploadedFiles.filter(f => 
+                    f.name.endsWith('.html') || f.name.endsWith('.htm')
+                );
+                
+                // Prefer index.html
+                const indexFile = htmlFiles.find(f => f.name.toLowerCase() === 'index.html');
+                if (indexFile) return indexFile.name;
+                
+                // Otherwise use first HTML file
+                if (htmlFiles.length > 0) return htmlFiles[0].name;
+                
+                // Default
+                return 'index.html';
+            }
+            
+            updateStatus(message, onProgress, percent) {
+                if (onProgress) {
+                    // Call with numeric progress for compatibility with existing code
+                    if (typeof onProgress === 'function') {
+                        onProgress(percent, message);
+                    }
+                }
+                console.log(`Upload progress: ${percent}% - ${message}`);
+            }
+        }
+        
         // S3 Game Uploader Class
         class S3GameUploader {
             constructor() {
-                // Get the current s3 instance, throw error if not initialized
-                if (!s3) {
-                    throw new Error('AWS S3 not initialized. Please ensure you are logged in.');
-                }
-                this.s3 = s3;
+                // S3GameUploader disabled - AWS SDK removed
+                console.error('S3GameUploader is disabled - AWS SDK removed');
+                throw new Error('S3GameUploader is no longer supported. Please use API-based uploads.');
             }
             
             generateGameId(gameName) {
@@ -2976,8 +3221,8 @@
             
             // Refresh games when navigating to All Games section
             if (sectionId === 'games') {
-                // Load from S3 to show all games
-                loadGamesFromS3();
+                // Load from API to show all games
+                loadDeveloperGames();
             }
             
             // Initialize debug dashboard when shown
@@ -3050,16 +3295,33 @@
 
         // Show alert
         function showAlert(message, type = 'info') {
+            // Debug AWS errors
+            if (message && (message.includes('AWS') || message.includes('initialized'))) {
+                console.error('ALERT WITH AWS MESSAGE:', message);
+                console.trace('Alert stack trace:');
+                if (typeof logToDebugConsole === 'function') {
+                    logToDebugConsole(`ALERT: ${message}`, 'error');
+                    const stack = new Error().stack;
+                    logToDebugConsole('Stack: ' + stack, 'error');
+                }
+            }
+            
             const alertsContainer = document.getElementById('uploadAlerts');
-            const alert = document.createElement('div');
-            alert.className = `alert alert-${type}`;
-            alert.textContent = message;
+            if (!alertsContainer) {
+                console.error('Alert container not found, using fallback alert');
+                alert(message);
+                return;
+            }
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
             
             alertsContainer.innerHTML = '';
-            alertsContainer.appendChild(alert);
+            alertsContainer.appendChild(alertDiv);
             
             setTimeout(() => {
-                alert.remove();
+                alertDiv.remove();
             }, 5000);
         }
 
@@ -3261,21 +3523,18 @@
                 console.error('Error loading games:', error);
                 // If API fails, try loading directly from S3
                 uploadedGames = [];
-                console.log('API failed, will load from S3 instead');
-                // Try to load from S3
-                setTimeout(() => loadGamesFromS3(), 500);
+                console.log('API failed, will retry with loadDeveloperGames');
+                // Try to load from API again
+                setTimeout(() => loadDeveloperGames(), 500);
             }
         }
 
         // Load games directly from S3 bucket listing - PRIMARY METHOD
         async function loadGamesFromS3() {
-            console.log('Loading games from S3 bucket...');
-            
-            if (!awsInitialized || !s3) {
-                console.log('AWS not initialized, falling back to API...');
-                loadGamesFromAPI();
-                return;
-            }
+            console.log('loadGamesFromS3 called - redirecting to API...');
+            // S3 direct access removed - always use API
+            loadGamesFromAPI();
+            return;
 
             try {
                 // List objects in the S3 bucket
@@ -3599,24 +3858,8 @@
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            if (!awsInitialized) {
-                console.log('AWS not initialized on form submit, attempting to initialize...');
-                showAlert('Initializing AWS services, please wait...', 'info');
-                
-                // Try to initialize AWS
-                initializeAWS();
-                
-                // Wait 2 seconds and check again
-                setTimeout(() => {
-                    if (!awsInitialized) {
-                        showAlert('AWS not initialized. Please refresh the page and try again.', 'error');
-                        console.error('AWS initialization failed. Please check browser console for errors.');
-                    } else {
-                        showAlert('AWS initialized! Please try uploading again.', 'success');
-                    }
-                }, 2000);
-                return;
-            }
+            // AWS check removed - using API mode
+            console.log('Using API mode for uploads');
             
             const title = document.getElementById('gameTitle').value;
             const description = document.getElementById('gameDescription').value;
@@ -3661,20 +3904,20 @@
             spinner.style.display = 'block';
             
             try {
-                // Ensure AWS is initialized before creating uploader
-                if (!awsInitialized || !s3) {
-                    console.log('AWS not initialized, attempting to initialize...');
-                    await initializeAWS();
-                    
-                    // Wait a bit for initialization to complete
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    
-                    if (!s3) {
-                        throw new Error('AWS S3 failed to initialize. Please check your login status.');
-                    }
-                }
+                // Skip AWS initialization check - using API mode
+                console.log('Skipping AWS check - API mode enabled');
                 
-                const uploader = new S3GameUploader();
+                // Debug logging for uploader selection
+                console.log('=== Uploader Selection Debug ===');
+                console.log('awsInitialized:', awsInitialized);
+                console.log('window.useAPIUploads:', window.useAPIUploads);
+                console.log('Condition (!awsInitialized || window.useAPIUploads):', (!awsInitialized || window.useAPIUploads));
+                
+                // Always use API uploader - AWS SDK removed
+                console.log('Using APIGameUploader (AWS SDK removed)');
+                const uploader = new APIGameUploader();
+                console.log('APIGameUploader instantiated successfully');
+                console.log('=== End Uploader Selection Debug ===');
                 
                 const gameData = {
                     name: title,
@@ -3764,12 +4007,12 @@
                 return;
             }
             
-            // Check if AWS is initialized
-            if (!awsInitialized || !s3) {
-                showAlert('Please wait for AWS to initialize and try again', 'error');
-                console.error('AWS not initialized. Status:', { awsInitialized, s3: !!s3 });
-                return;
-            }
+            // AWS check removed - delete via API only
+            // if (!awsInitialized || !s3) {
+            //     showAlert('Please wait for AWS to initialize and try again', 'error');
+            //     console.error('AWS not initialized. Status:', { awsInitialized, s3: !!s3 });
+            //     return;
+            // }
             
             const deleteButton = document.querySelector(`[data-game-id="${gameId}"] .delete-button`);
             if (deleteButton) {
@@ -3799,9 +4042,10 @@
                     console.warn('API deletion error (expected):', apiError);
                 }
                 
-                // Step 2: Move files to bin folder in S3
-                if (awsInitialized && s3) {
-                    console.log('Moving game files to bin in S3:', gameId);
+                // Step 2: S3 operations removed - AWS SDK not available
+                // Files remain in S3 but game is marked as deleted in database
+                if (false) { // Disabled - no AWS SDK
+                    console.log('S3 operations disabled - AWS SDK removed');
                     
                     // List all objects in the game folder
                     const listParams = {
@@ -4139,37 +4383,57 @@
         
         // Upload game thumbnail
         async function uploadGameThumbnail(gameId, file) {
-            if (!awsInitialized || !s3) {
-                console.error('AWS not initialized');
-                return null;
-            }
-            
             try {
+                // Get authentication token
+                const authToken = validateAndGetToken();
+                if (!authToken) {
+                    throw new Error('Authentication required for thumbnail upload');
+                }
+                
                 // Create thumbnail filename
                 const extension = file.name.split('.').pop();
                 const thumbnailKey = `${gameId}/thumbnail.${extension}`;
                 
-                // Upload to S3
-                const params = {
-                    Bucket: AWS_CONFIG.gamesBucket,
-                    Key: thumbnailKey,
-                    Body: file,
-                    ContentType: file.type,
-                    ACL: 'public-read'
-                };
-                
-                return new Promise((resolve, reject) => {
-                    s3.upload(params, (err, data) => {
-                        if (err) {
-                            console.error('Thumbnail upload error:', err);
-                            reject(err);
-                        } else {
-                            console.log('Thumbnail uploaded:', data.Location);
-                            // Return CloudFront URL
-                            resolve(`https://${AWS_CONFIG.cdnPrimary}/${thumbnailKey}`);
-                        }
-                    });
+                // Step 1: Get presigned URL from API
+                console.log('Getting presigned URL for thumbnail upload...');
+                const presignedResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/upload/presigned`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        key: thumbnailKey,
+                        contentType: file.type || 'image/png'
+                    })
                 });
+                
+                if (!presignedResponse.ok) {
+                    const error = await presignedResponse.text();
+                    throw new Error(`Failed to get presigned URL: ${error}`);
+                }
+                
+                const { uploadUrl, key } = await presignedResponse.json();
+                
+                // Step 2: Upload thumbnail directly to S3 using presigned URL
+                console.log('Uploading thumbnail to S3...');
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    body: file,
+                    headers: {
+                        'Content-Type': file.type || 'image/png'
+                    }
+                });
+                
+                if (!uploadResponse.ok) {
+                    throw new Error(`Failed to upload thumbnail: ${uploadResponse.statusText}`);
+                }
+                
+                // Return CloudFront CDN URL
+                const cdnUrl = `https://${AWS_CONFIG.cdnPrimary}/${key}`;
+                console.log('Thumbnail uploaded successfully:', cdnUrl);
+                return cdnUrl;
+                
             } catch (error) {
                 console.error('Error uploading thumbnail:', error);
                 return null;
@@ -4438,16 +4702,64 @@
         }
         
         async function checkS3Status() {
-            logToDebugConsole('Developer portal uses API endpoints for uploads');
+            // Check current upload mode
+            const isAPIMode = !awsInitialized || window.useAPIUploads;
             
-            // Developer portal doesn't use direct S3 access
-            updateStatusCard('s3Status', '✅', 'API Mode', 
-                'Using API endpoints', 'success');
-            logToDebugConsole('File uploads handled via API endpoints', 'info');
+            if (isAPIMode) {
+                logToDebugConsole('Developer portal configured to use API endpoints for uploads');
+                updateStatusCard('s3Status', '✅', 'API Upload Ready', 
+                    'Using API endpoints', 'success');
+                logToDebugConsole('File uploads will be handled via API endpoints', 'info');
+            } else {
+                logToDebugConsole('Developer portal configured to use direct S3 uploads');
+                updateStatusCard('s3Status', '✅', 'S3 Upload Ready', 
+                    'Using direct S3 access', 'success');
+                logToDebugConsole('File uploads will be handled via direct S3 access', 'info');
+            }
+            
+            logToDebugConsole(`Current mode: ${isAPIMode ? 'API' : 'S3'}, awsInitialized: ${awsInitialized}, useAPIUploads: ${window.useAPIUploads}`, 'info');
         }
         
         async function runFullSystemCheck() {
             logToDebugConsole('=== Starting Full System Check ===', 'info');
+            
+            // Check AWS SDK presence
+            logToDebugConsole('--- AWS SDK Check ---', 'info');
+            logToDebugConsole(`typeof AWS: ${typeof AWS}`, typeof AWS === 'undefined' ? 'success' : 'error');
+            logToDebugConsole(`window.AWS exists: ${typeof window.AWS !== 'undefined'}`, typeof window.AWS === 'undefined' ? 'success' : 'error');
+            logToDebugConsole(`awsInitialized: ${awsInitialized}`, !awsInitialized ? 'success' : 'error');
+            logToDebugConsole(`window.useAPIUploads: ${window.useAPIUploads}`, window.useAPIUploads ? 'success' : 'info');
+            
+            // Check global variables
+            logToDebugConsole('--- Global Variables ---', 'info');
+            logToDebugConsole(`s3 variable: ${typeof s3}`, 'info');
+            logToDebugConsole(`APIGameUploader exists: ${typeof APIGameUploader !== 'undefined'}`, 'success');
+            logToDebugConsole(`S3GameUploader exists: ${typeof S3GameUploader !== 'undefined'}`, 'warning');
+            
+            // Check for AWS references in window
+            logToDebugConsole('--- Window Object Scan ---', 'info');
+            const awsKeys = Object.keys(window).filter(key => key.toLowerCase().includes('aws'));
+            if (awsKeys.length > 0) {
+                logToDebugConsole(`Found AWS-related keys in window: ${awsKeys.join(', ')}`, 'warning');
+            } else {
+                logToDebugConsole('No AWS-related keys found in window object', 'success');
+            }
+            
+            // Check scripts loaded
+            logToDebugConsole('--- Loaded Scripts ---', 'info');
+            const scripts = Array.from(document.getElementsByTagName('script'));
+            scripts.forEach((script, index) => {
+                if (script.src && script.src.includes('aws')) {
+                    logToDebugConsole(`Script ${index}: ${script.src}`, 'error');
+                }
+            });
+            
+            // Check for initializeAWS function
+            logToDebugConsole('--- Function Check ---', 'info');
+            logToDebugConsole(`initializeAWS function exists: ${typeof initializeAWS !== 'undefined'}`, 'info');
+            if (typeof initializeAWS !== 'undefined') {
+                logToDebugConsole(`initializeAWS.toString().substring(0, 100): ${initializeAWS.toString().substring(0, 100)}...`, 'info');
+            }
             
             // Update all status cards
             await checkAuthStatus();
@@ -4455,6 +4767,9 @@
             await checkGamesStatus();
             await checkS3Status();
             await updateSystemInfo();
+            
+            // Test upload endpoints
+            await testUploadEndpoints();
             
             logToDebugConsole('=== System Check Complete ===', 'success');
         }
@@ -5032,7 +5347,7 @@
         }
         
         async function testAPIUpload() {
-            logToDebugConsole('Testing API upload capability...');
+            logToDebugConsole('Testing API-based upload endpoints...');
             
             const token = validateAndGetToken();
             if (!token) {
@@ -5041,24 +5356,90 @@
             }
             
             try {
-                // Test if the upload endpoint is accessible
-                logToDebugConsole('Checking /games POST endpoint...', 'info');
-                const response = await fetch(`${AWS_CONFIG.apiEndpoint}/games`, {
-                    method: 'OPTIONS',
+                // Test 1: Check /upload/initiate endpoint
+                logToDebugConsole('Testing /upload/initiate endpoint...', 'info');
+                const initiateResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/upload/initiate`, {
+                    method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({
+                        gameId: 'test-game-' + Date.now(),
+                        fileType: 'index.html'
+                    })
                 });
                 
-                if (response.ok || response.status === 405) {
-                    logToDebugConsole('✅ Upload API endpoint is accessible', 'success');
-                    logToDebugConsole('Note: File uploads currently use S3 directly but should be migrated to API', 'warning');
+                if (initiateResponse.ok) {
+                    const initiateData = await initiateResponse.json();
+                    logToDebugConsole('✅ /upload/initiate endpoint is accessible', 'success');
+                    logToDebugConsole(`Response: ${JSON.stringify(initiateData, null, 2)}`, 'info');
+                    
+                    // If we got an uploadId, test the presigned endpoint
+                    if (initiateData.uploadId) {
+                        // Test 2: Check /upload/presigned endpoint
+                        logToDebugConsole('Testing /upload/presigned endpoint...', 'info');
+                        const presignedResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/upload/presigned`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                uploadId: initiateData.uploadId,
+                                gameId: initiateData.gameId,
+                                fileName: 'test-file.html',
+                                fileType: 'text/html'
+                            })
+                        });
+                        
+                        if (presignedResponse.ok) {
+                            const presignedData = await presignedResponse.json();
+                            logToDebugConsole('✅ /upload/presigned endpoint is accessible', 'success');
+                            logToDebugConsole(`Got presigned URL: ${presignedData.url ? 'Yes' : 'No'}`, 'info');
+                            
+                            // Test 3: Check /upload/complete endpoint
+                            logToDebugConsole('Testing /upload/complete endpoint...', 'info');
+                            const completeResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/upload/complete`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    uploadId: initiateData.uploadId,
+                                    gameId: initiateData.gameId,
+                                    uploadedFiles: ['test-file.html']
+                                })
+                            });
+                            
+                            if (completeResponse.ok) {
+                                const completeData = await completeResponse.json();
+                                logToDebugConsole('✅ /upload/complete endpoint is accessible', 'success');
+                                logToDebugConsole(`Response: ${JSON.stringify(completeData, null, 2)}`, 'info');
+                            } else {
+                                logToDebugConsole(`❌ /upload/complete returned ${completeResponse.status}`, 'error');
+                                const errorText = await completeResponse.text();
+                                logToDebugConsole(`Error: ${errorText}`, 'error');
+                            }
+                        } else {
+                            logToDebugConsole(`❌ /upload/presigned returned ${presignedResponse.status}`, 'error');
+                            const errorText = await presignedResponse.text();
+                            logToDebugConsole(`Error: ${errorText}`, 'error');
+                        }
+                    }
                 } else {
-                    logToDebugConsole(`❌ Upload API returned ${response.status}`, 'error');
+                    logToDebugConsole(`❌ /upload/initiate returned ${initiateResponse.status}`, 'error');
+                    const errorText = await initiateResponse.text();
+                    logToDebugConsole(`Error: ${errorText}`, 'error');
                 }
+                
+                logToDebugConsole('\n✅ Portal now uses API-based uploads instead of direct S3 access', 'success');
+                logToDebugConsole('All file uploads are handled through the secure API endpoints', 'info');
+                
             } catch (e) {
                 logToDebugConsole(`❌ Upload API test failed: ${e.message}`, 'error');
+                console.error('Upload test error:', e);
             }
         }
         
@@ -5108,7 +5489,8 @@
         }
         
         async function testCloudFront() {
-            logToDebugConsole('Testing CloudFront CDN...');
+            logToDebugConsole('=== Testing CloudFront CDN ===', 'info');
+            logToDebugConsole('Note: CloudFront is for game delivery, not required for uploads', 'info');
             
             // Test multiple CDN endpoints for comprehensive check
             const cdnTests = [
@@ -5181,6 +5563,123 @@
                 logToDebugConsole('CloudFront Status: No CDN endpoints accessible', 'error');
                 logToDebugConsole('This may indicate a configuration issue or the game assets are missing', 'warning');
             }
+        }
+        
+        // Comprehensive AWS disconnection test
+        async function testAWSDisconnection() {
+            logToDebugConsole('=== Testing AWS Disconnection ===', 'info');
+            
+            const tests = {
+                awsSdkLoaded: {
+                    name: 'AWS SDK Loaded',
+                    check: () => typeof AWS !== 'undefined',
+                    expected: false
+                },
+                awsInWindow: {
+                    name: 'AWS in window object',
+                    check: () => 'AWS' in window,
+                    expected: false
+                },
+                awsConfigExists: {
+                    name: 'AWS.config exists',
+                    check: () => typeof AWS !== 'undefined' && AWS.config !== undefined,
+                    expected: false
+                },
+                s3Variable: {
+                    name: 'S3 instance exists',
+                    check: () => typeof s3 !== 'undefined' && s3 !== null,
+                    expected: false
+                },
+                awsInitialized: {
+                    name: 'awsInitialized flag',
+                    check: () => awsInitialized === true,
+                    expected: false
+                },
+                cognitoIdentity: {
+                    name: 'CognitoIdentityCredentials',
+                    check: () => typeof AWS !== 'undefined' && AWS.CognitoIdentityCredentials !== undefined,
+                    expected: false
+                },
+                s3InUploader: {
+                    name: 'S3 in APIGameUploader',
+                    check: () => {
+                        try {
+                            const uploader = new APIGameUploader();
+                            return uploader.s3 !== undefined;
+                        } catch (e) {
+                            return false;
+                        }
+                    },
+                    expected: false
+                }
+            };
+            
+            let passCount = 0;
+            let failCount = 0;
+            
+            for (const [key, test] of Object.entries(tests)) {
+                try {
+                    const result = test.check();
+                    const passed = result === test.expected;
+                    
+                    if (passed) {
+                        logToDebugConsole(`✅ ${test.name}: ${result} (expected ${test.expected})`, 'success');
+                        passCount++;
+                    } else {
+                        logToDebugConsole(`❌ ${test.name}: ${result} (expected ${test.expected})`, 'error');
+                        failCount++;
+                    }
+                } catch (error) {
+                    // Error is good if we're checking for non-existence
+                    logToDebugConsole(`✅ ${test.name}: Error thrown (good - not accessible)`, 'success');
+                    passCount++;
+                }
+            }
+            
+            // Check for any AWS-related scripts
+            logToDebugConsole('--- Checking for AWS Scripts ---', 'info');
+            const scripts = Array.from(document.getElementsByTagName('script'));
+            const awsScripts = scripts.filter(s => s.src && (s.src.includes('aws-sdk') || s.src.includes('aws')));
+            
+            if (awsScripts.length === 0) {
+                logToDebugConsole('✅ No AWS SDK scripts loaded', 'success');
+                passCount++;
+            } else {
+                logToDebugConsole(`❌ Found ${awsScripts.length} AWS scripts:`, 'error');
+                awsScripts.forEach(s => logToDebugConsole(`  - ${s.src}`, 'error'));
+                failCount++;
+            }
+            
+            // Check for AWS references in code
+            logToDebugConsole('--- Checking Code References ---', 'info');
+            
+            // Check if initializeAWS actually runs
+            const initAWSFunc = window.initializeAWS;
+            if (initAWSFunc) {
+                const funcStr = initAWSFunc.toString();
+                if (funcStr.includes('return;') && funcStr.includes('Exit immediately')) {
+                    logToDebugConsole('✅ initializeAWS is disabled (returns immediately)', 'success');
+                    passCount++;
+                } else {
+                    logToDebugConsole('❌ initializeAWS might still execute AWS code', 'error');
+                    failCount++;
+                }
+            }
+            
+            // Summary
+            logToDebugConsole('=== AWS Disconnection Summary ===', 'info');
+            logToDebugConsole(`Passed: ${passCount}`, 'success');
+            logToDebugConsole(`Failed: ${failCount}`, failCount > 0 ? 'error' : 'info');
+            
+            if (failCount === 0) {
+                logToDebugConsole('🎉 AWS is completely disconnected!', 'success');
+                logToDebugConsole('Portal uses API endpoints exclusively', 'success');
+            } else {
+                logToDebugConsole('⚠️ AWS references still found', 'warning');
+                logToDebugConsole('This may cause the "AWS not initialized" error', 'warning');
+            }
+            
+            return failCount === 0;
         }
         
         // Legacy debug function for backward compatibility
@@ -6165,7 +6664,8 @@
                 }
             }, 1000);
             
-            // Initialize AWS SDK for S3 uploads
+            // AWS SDK initialization DISABLED - using API uploads only
+            /* COMMENTED OUT - AWS SDK REMOVED
             console.log('Initializing AWS SDK...');
             // Add a small delay to ensure AWS SDK is loaded
             setTimeout(() => {
@@ -6182,16 +6682,13 @@
                 }
                 console.log('AWS SDK loaded, version:', AWS.VERSION);
                 
-                // Force AWS initialization even if there's an issue
-                try {
-                    initializeAWS();
-                } catch (initError) {
-                    console.error('Error during AWS initialization:', initError);
-                    // Set a flag to use API uploads instead
-                    window.useAPIUploads = true;
-                    awsInitialized = false;
-                }
+                // AWS initialization disabled - using API mode
+                // According to infrastructure review, portal should use API endpoints only
+                console.log('AWS SDK loaded but initialization disabled - using API mode');
+                window.useAPIUploads = true;
+                awsInitialized = false;
             }, 1000);
+            */ // END AWS SDK CHECK
             
             // Check for existing token after a short delay to ensure storage is ready
             setTimeout(() => {
@@ -6272,10 +6769,10 @@
     
     <!-- Authentication Service -->
     <script src="auth-service.js"></script>
-    <script src="auth-integration.js"></script>
+    <!-- auth-integration.js removed - not needed -->
     
     <!-- Chart.js for Analytics -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <!-- Analytics Functions -->
     <script>
@@ -6714,7 +7211,217 @@
                     setTimeout(initAnalytics, 100); // Small delay to ensure section is visible
                 };
             }
+            
+            // Update version indicator
+            const versionEl = document.getElementById('portalVersion');
+            if (versionEl) {
+                versionEl.textContent = PORTAL_VERSION;
+            }
+            
+            // Check cache status
+            const cacheEl = document.getElementById('cacheStatus');
+            if (cacheEl) {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('nocache') || urlParams.has('v')) {
+                    cacheEl.textContent = 'Fresh Load';
+                    cacheEl.style.color = '#51cf66';
+                } else {
+                    cacheEl.textContent = 'May be cached';
+                    cacheEl.style.color = '#ffd43b';
+                }
+            }
         });
+        
+        // Debug error source function
+        function debugErrorSource() {
+            logToDebugConsole('=== Debugging Error Source ===', 'info');
+            
+            // Override showAlert to capture error source
+            const originalShowAlert = window.showAlert;
+            window.showAlert = function(message, type) {
+                if (message && message.includes('AWS not initialized')) {
+                    console.trace('AWS not initialized error triggered');
+                    logToDebugConsole('ERROR CAPTURED: ' + message, 'error');
+                    logToDebugConsole('Stack trace:', 'error');
+                    const stack = new Error().stack;
+                    logToDebugConsole(stack, 'error');
+                }
+                return originalShowAlert(message, type);
+            };
+            logToDebugConsole('Error capture enabled. Try uploading a game now.', 'success');
+            
+            // Check all event listeners
+            logToDebugConsole('--- Checking Event Listeners ---', 'info');
+            const uploadForm = document.getElementById('uploadForm');
+            if (uploadForm) {
+                logToDebugConsole('Upload form found', 'success');
+                // Get all event listeners (this is limited but helpful)
+                const submitButton = uploadForm.querySelector('[type="submit"]');
+                if (submitButton) {
+                    logToDebugConsole('Submit button found', 'success');
+                }
+            }
+            
+            // Check for any error throwing functions
+            const errorFunctions = [];
+            for (let key in window) {
+                if (typeof window[key] === 'function') {
+                    const funcStr = window[key].toString();
+                    if (funcStr.includes('AWS not initialized') && funcStr.includes('Please refresh')) {
+                        errorFunctions.push(key);
+                    }
+                }
+            }
+            if (errorFunctions.length > 0) {
+                logToDebugConsole(`Found functions with error message: ${errorFunctions.join(', ')}`, 'error');
+            } else {
+                logToDebugConsole('No functions found with exact error message', 'info');
+            }
+        }
+        
+        // Test API upload directly
+        async function testAPIUpload() {
+            logToDebugConsole('=== Testing API Upload Directly ===', 'info');
+            
+            // First check if AWS is trying to initialize
+            logToDebugConsole('Checking environment...', 'info');
+            logToDebugConsole(`typeof AWS: ${typeof AWS}`, typeof AWS === 'undefined' ? 'success' : 'warning');
+            logToDebugConsole(`awsInitialized: ${awsInitialized}`, 'info');
+            
+            const token = validateAndGetToken();
+            if (!token) {
+                logToDebugConsole('No authentication token found!', 'error');
+                return;
+            }
+            
+            try {
+                // Test file
+                const testContent = new Blob(['<html><body>Test Game</body></html>'], { type: 'text/html' });
+                const testFile = new File([testContent], 'index.html', { type: 'text/html' });
+                
+                const gameId = `test-game-${Date.now()}`;
+                
+                logToDebugConsole('Initiating upload session...', 'info');
+                
+                // Step 1: Initiate upload
+                const initResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/upload/initiate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        gameId: gameId,
+                        files: [{
+                            name: 'index.html',
+                            size: testFile.size,
+                            type: 'text/html'
+                        }]
+                    })
+                });
+                
+                if (!initResponse.ok) {
+                    throw new Error(`Init failed: ${initResponse.status} ${await initResponse.text()}`);
+                }
+                
+                const { uploadUrls } = await initResponse.json();
+                logToDebugConsole('Got presigned URL', 'success');
+                
+                // Step 2: Upload file
+                logToDebugConsole('Uploading file to S3...', 'info');
+                logToDebugConsole(`Presigned URL: ${uploadUrls[0].uploadUrl.substring(0, 100)}...`, 'info');
+                
+                try {
+                    const uploadResponse = await fetch(uploadUrls[0].uploadUrl, {
+                        method: 'PUT',
+                        body: testFile,
+                        headers: {
+                            'Content-Type': 'text/html'
+                        },
+                        mode: 'cors'
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        logToDebugConsole(`Upload response status: ${uploadResponse.status}`, 'error');
+                        logToDebugConsole(`Upload response: ${uploadResponse.statusText}`, 'error');
+                        throw new Error(`Upload failed: ${uploadResponse.status}`);
+                    }
+                } catch (uploadError) {
+                    logToDebugConsole(`Upload error details: ${uploadError.message}`, 'error');
+                    if (uploadError.message.includes('Failed to fetch')) {
+                        logToDebugConsole('This is likely a CORS issue with S3 bucket', 'warning');
+                        logToDebugConsole('S3 bucket may need CORS configuration for presigned URLs', 'warning');
+                    }
+                    throw uploadError;
+                }
+                
+                logToDebugConsole('File uploaded successfully!', 'success');
+                
+                // Step 3: Complete upload
+                logToDebugConsole('Completing upload...', 'info');
+                const completeResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/upload/complete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        gameId: gameId,
+                        uploadedFiles: uploadUrls.map(u => u.key)
+                    })
+                });
+                
+                if (!completeResponse.ok) {
+                    throw new Error(`Complete failed: ${completeResponse.status}`);
+                }
+                
+                logToDebugConsole('Upload completed successfully!', 'success');
+                logToDebugConsole(`Game URL: https://${AWS_CONFIG.cdnPrimary}/${gameId}/index.html`, 'success');
+                
+            } catch (error) {
+                logToDebugConsole(`Upload test failed: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Quick console test function
+        window.quickUploadTest = async function() {
+            console.log('=== Quick Upload Test (No AWS SDK) ===');
+            const token = localStorage.getItem('developerToken') || sessionStorage.getItem('developerToken');
+            if (!token) {
+                console.error('No token found. Please login first.');
+                return;
+            }
+            
+            console.log('Token found, testing upload API...');
+            
+            try {
+                const response = await fetch('https://4ib0hvu1xj.execute-api.us-east-1.amazonaws.com/prod/upload/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        gameId: 'console-test-' + Date.now(),
+                        files: [{name: 'test.txt', size: 100, type: 'text/plain'}]
+                    })
+                });
+                
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (response.ok && data.uploadUrls) {
+                    console.log('✅ SUCCESS! Upload API is working');
+                    console.log('Presigned URL received:', data.uploadUrls[0].uploadUrl.substring(0, 100) + '...');
+                } else {
+                    console.error('❌ Upload API error');
+                }
+            } catch (error) {
+                console.error('❌ Error:', error);
+            }
+        };
         
         // Show/hide support footer based on section
         function updateSupportFooterVisibility() {
