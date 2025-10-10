@@ -3521,11 +3521,11 @@
                 displayGames();
             } catch (error) {
                 console.error('Error loading games:', error);
-                // If API fails, try loading directly from S3
+                // If API fails, set empty array
                 uploadedGames = [];
-                console.log('API failed, will retry with loadGamesFromAPI');
-                // Try to load from API again
-                setTimeout(() => loadGamesFromAPI(), 500);
+                console.log('API failed, will not retry automatically');
+                // Don't retry automatically to avoid infinite loops
+                showAlert('Failed to load games. Please check your connection and try again.', 'error');
             }
         }
 
@@ -6710,9 +6710,12 @@
             // Setup device compatibility checkboxes
             setupDeviceCompatibility();
             
-            // Load games from API (developer portal doesn't need direct S3 access)
+            // Only load games if authenticated
             setTimeout(() => {
-                loadGamesFromAPI();
+                const token = validateAndGetToken();
+                if (token) {
+                    loadGamesFromAPI();
+                }
             }, 1000);
             
             // Auto-populate developer ID when page loads
