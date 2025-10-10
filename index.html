@@ -2731,11 +2731,11 @@
 
                     const result = await completeResponse.json();
                     
-                    // Update results with URLs from API
-                    uploadResults.gameUrl = result.urls.gameUrl || `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/${mainFile}`;
-                    if (result.urls.trialUrl) {
-                        uploadResults.trialUrl = result.urls.trialUrl;
-                    }
+                    // Generate URLs since API doesn't return them yet
+                    uploadResults.gameUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/${mainFile}`;
+                    
+                    // Optional: Add trial URL if needed
+                    // uploadResults.trialUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/trial.html`;
                     
                     this.updateStatus('Upload completed successfully!', onProgress, 100);
 
