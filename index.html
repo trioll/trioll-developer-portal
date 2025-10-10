@@ -1911,7 +1911,7 @@
                                 <p style="color: var(--text-gray-400); margin-bottom: 1rem;">
                                     or click to browse
                                 </p>
-                                <input type="file" id="gameFiles" multiple style="display: none;" required>
+                                <input type="file" id="gameFiles" name="gameFiles" multiple style="display: none;" required>
                                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('gameFiles').click()">
                                     Select Files
                                 </button>
@@ -3222,7 +3222,7 @@
             // Refresh games when navigating to All Games section
             if (sectionId === 'games') {
                 // Load from API to show all games
-                loadDeveloperGames();
+                loadGamesFromAPI();
             }
             
             // Initialize debug dashboard when shown
@@ -3523,9 +3523,9 @@
                 console.error('Error loading games:', error);
                 // If API fails, try loading directly from S3
                 uploadedGames = [];
-                console.log('API failed, will retry with loadDeveloperGames');
+                console.log('API failed, will retry with loadGamesFromAPI');
                 // Try to load from API again
-                setTimeout(() => loadDeveloperGames(), 500);
+                setTimeout(() => loadGamesFromAPI(), 500);
             }
         }
 
