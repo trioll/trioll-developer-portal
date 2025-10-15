@@ -1787,7 +1787,7 @@
         <!-- Upload Game Section -->
         <section id="upload" class="section">
             <div class="container">
-                <h2 style="font-size: 2rem; margin-bottom: 2rem;">Upload Your Game v1</h2>
+                <h2 style="font-size: 2rem; margin-bottom: 2rem;">Upload Your Game v2</h2>
                 
                 <div class="upload-section">
                     <form id="uploadForm">
@@ -2425,9 +2425,9 @@
         let uploadedGames = [];
         
         // Version indicator - UPDATE THIS when making changes
-        const PORTAL_VERSION = '2.1.1-s3-headers-fixed';
+        const PORTAL_VERSION = '2.1.2-duplicate-save-fixed';
         console.log(`🚀 Trioll Developer Portal v${PORTAL_VERSION} loaded`);
-        console.log('✅ Fixed S3 upload headers - no Content-Type sent');
+        console.log('✅ Fixed duplicate save error - Lambda handles database save');
         
         // Global error interceptor
         window.addEventListener('error', function(event) {
@@ -4048,26 +4048,18 @@
                 // Convert device compatibility to platform field for filtering
                 const platform = convertDeviceCompatibilityToPlatform(deviceCompatibility);
                 
-                // Save to database with developer ID
-                const savedGame = await saveGameToDatabase({
+                // REMOVED: Duplicate save to database
+                // The Lambda already saves the game in /upload/complete endpoint
+                // No need to save again - causes "conditional request failed" error
+                console.log('Game already saved by Lambda, skipping duplicate save');
+                
+                // Just use the results from upload
+                const savedGame = {
                     gameId: results.gameId,
                     name: title,
-                    category: category,
-                    description: description,
-                    developer: developer,
-                    developerId: developerId, // Include developer ID
-                    deviceOrientation: deviceOrientation || 'both',
-                    controlStyle: controlStyle || 'touchscreen',
-                    gameStage: gameStage,
-                    deviceCompatibility: deviceCompatibility,
-                    platform: platform, // Add platform field for filtering
-                    buildId: buildId,
                     gameUrl: results.gameUrl,
-                    thumbnailUrl: results.thumbnailUrl,
-                    s3Folder: results.gameId,
-                    uploadedFiles: results.files ? results.files.length : 0,
-                    uploadedAt: new Date().toISOString()
-                });
+                    thumbnailUrl: results.thumbnailUrl
+                };
                 
                 // Reload games from API to show the newly uploaded game
                 await loadGamesFromAPI();
