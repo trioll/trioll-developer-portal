@@ -1787,7 +1787,7 @@
         <!-- Upload Game Section -->
         <section id="upload" class="section">
             <div class="container">
-                <h2 style="font-size: 2rem; margin-bottom: 2rem;">Upload Your Game</h2>
+                <h2 style="font-size: 2rem; margin-bottom: 2rem;">Upload Your Game v1</h2>
                 
                 <div class="upload-section">
                     <form id="uploadForm">
@@ -2211,6 +2211,9 @@
     </div>
 
     <script>
+        // Set API upload mode immediately when script loads
+        window.useAPIUploads = true;
+        
         // Create a simple auth object if auth-service.js hasn't loaded yet
         if (typeof auth === 'undefined') {
             console.log('Creating fallback auth object');
@@ -2417,12 +2420,14 @@
 
         // Global variables
         // AWS variables removed - using API-based uploads
+        window.useAPIUploads = true; // ALWAYS use API uploads - set immediately
         let awsInitialized = false; // Always false now
         let uploadedGames = [];
         
         // Version indicator - UPDATE THIS when making changes
-        const PORTAL_VERSION = '2.0.1-no-aws-fixed';
-        console.log(`\ud83d\ude80 Trioll Developer Portal v${PORTAL_VERSION} loaded`);
+        const PORTAL_VERSION = '2.1.0-upload-v1-fixed';
+        console.log(`🚀 Trioll Developer Portal v${PORTAL_VERSION} loaded`);
+        console.log('✅ Upload Tab: v1 - Cache cleared successfully!');
         
         // Global error interceptor
         window.addEventListener('error', function(event) {
@@ -2616,8 +2621,16 @@
             }
             
             async uploadGame(gameData, onProgress) {
+                console.log('🎮 === UPLOAD STARTED ===');
+                console.log('Input gameData:', gameData);
+                
                 const { name, files, thumbnail, metadata } = gameData;
+                console.log('Extracted name:', name);
+                console.log('Extracted metadata:', metadata);
+                
                 const gameId = this.generateGameId(name);
+                console.log('Generated gameId:', gameId);
+                
                 const uploadResults = {
                     gameId,
                     gameUrl: null,
@@ -2709,8 +2722,96 @@
                     // Step 3: Complete the upload and get final URLs
                     this.updateStatus('Finalizing upload...', onProgress, 85);
                     
-                    // Determine main file
+                    // Get developer ID
+                    const developerId = getDeveloperId();
+                    if (!developerId) {
+                        throw new Error('Developer ID not found. Please login again.');
+                    }
+                    
+                    console.log('Upload complete payload - metadata:', metadata);
+                    console.log('Upload complete payload - developerId:', developerId);
+                    console.log('Upload complete payload - gameId:', gameId);
+                    console.log('Upload complete payload - this.gameId:', this.gameId);
+                    console.log('Upload complete payload - uploadResults:', uploadResults);
+                    
+                    // Check if gameId is available
+                    if (!gameId) {
+                        console.error('gameId is undefined or null!');
+                        throw new Error('Game ID is missing');
+                    }
+                    
+                    // Check if metadata is available
+                    if (!metadata) {
+                        console.error('metadata is undefined or null!');
+                        throw new Error('Game metadata is missing');
+                    }
+                    
+                    // Determine main file and thumbnail
                     const mainFile = this.getMainFile(uploadResults.files);
+                    
+                    // Find the actual HTML file and thumbnail file names
+                    let mainHtmlFile = null;
+                    let thumbnailFile = null;
+                    
+                    for (const file of uploadResults.files) {
+                        const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+                        if (ext === '.html' && !mainHtmlFile) {
+                            mainHtmlFile = file.name;
+                        }
+                        if ((ext === '.png' || ext === '.jpg' || ext === '.jpeg') && !thumbnailFile) {
+                            thumbnailFile = file.name;
+                        }
+                    }
+                    
+                    // CRITICAL FIX: Ensure we have all required data
+                    if (!metadata) {
+                        console.error('CRITICAL: metadata is undefined!');
+                        throw new Error('Game metadata is missing');
+                    }
+                    
+                    // Use the gameId we generated at the start of this method
+                    const finalGameId = gameId || uploadResults.gameId;
+                    if (!finalGameId) {
+                        console.error('CRITICAL: No gameId available!');
+                        console.error('gameId:', gameId);
+                        console.error('uploadResults.gameId:', uploadResults.gameId);
+                        throw new Error('Game ID generation failed');
+                    }
+                    
+                    // Build gameData with ALL required fields from metadata
+                    const finalGameData = {
+                        name: metadata.name || name,
+                        title: metadata.name || name,  // Lambda expects 'title'
+                        description: metadata.description || '',
+                        category: metadata.category || metadata.genre || 'General',
+                        developerId: developerId,
+                        status: 'active',
+                        platform: metadata.platform || 'both',
+                        deviceOrientation: metadata.deviceOrientation || 'both',
+                        controlStyle: metadata.controlStyle || 'touchscreen',
+                        gameStage: metadata.gameStage || 'production',
+                        deviceCompatibility: metadata.deviceCompatibility || ['mobile'],
+                        buildId: metadata.buildId || `build-${Date.now()}`,
+                        developer: metadata.developer || 'Unknown Developer'
+                    };
+                    
+                    const completePayload = {
+                        gameId: finalGameId,
+                        uploadedFiles: uploadResults.files || [],
+                        gameData: finalGameData,
+                        mainHtmlFile: mainHtmlFile || 'index.html',
+                        thumbnailFile: thumbnailFile || 'thumbnail.png'
+                    };
+                    
+                    console.log('=== CRITICAL: UPLOAD COMPLETE PAYLOAD ===');
+                    console.log('gameId:', completePayload.gameId);
+                    console.log('gameId type:', typeof completePayload.gameId);
+                    console.log('gameData:', completePayload.gameData);
+                    console.log('gameData type:', typeof completePayload.gameData);
+                    console.log('Has gameId:', !!completePayload.gameId);
+                    console.log('Has gameData:', !!completePayload.gameData);
+                    console.log('Full payload:', JSON.stringify(completePayload, null, 2));
+                    console.log('=== END PAYLOAD ===');
                     
                     const completeResponse = await fetch(`${this.apiEndpoint}/upload/complete`, {
                         method: 'POST',
@@ -2718,10 +2819,7 @@
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${authToken}`
                         },
-                        body: JSON.stringify({
-                            gameId: gameId,
-                            mainFile: mainFile
-                        })
+                        body: JSON.stringify(completePayload)
                     });
 
                     if (!completeResponse.ok) {
@@ -2731,11 +2829,21 @@
 
                     const result = await completeResponse.json();
                     
-                    // Generate URLs since API doesn't return them yet
-                    uploadResults.gameUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/${mainFile}`;
+                    // Use URLs from the enhanced API response if available
+                    if (result.gameUrl) {
+                        uploadResults.gameUrl = result.gameUrl;
+                    } else {
+                        // Fallback to generating URL
+                        uploadResults.gameUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/${mainFile}`;
+                    }
                     
-                    // Optional: Add trial URL if needed
-                    // uploadResults.trialUrl = `https://dgq2nqysbn2z3.cloudfront.net/${gameId}/trial.html`;
+                    if (result.thumbnailUrl) {
+                        uploadResults.thumbnailUrl = result.thumbnailUrl;
+                    }
+                    
+                    // Store the actual filenames
+                    uploadResults.mainHtmlFile = result.mainHtmlFile || mainHtmlFile;
+                    uploadResults.thumbnailFile = result.thumbnailFile || thumbnailFile;
                     
                     this.updateStatus('Upload completed successfully!', onProgress, 100);
 
@@ -4774,6 +4882,34 @@
             logToDebugConsole('=== System Check Complete ===', 'success');
         }
         
+        async function testUploadEndpoints() {
+            logToDebugConsole('Testing upload endpoints...', 'info');
+            
+            try {
+                const token = validateAndGetToken();
+                if (!token) {
+                    logToDebugConsole('No token available for upload endpoint test', 'warning');
+                    return;
+                }
+                
+                // Test /upload/initiate
+                const testResponse = await fetch(`${AWS_CONFIG.apiEndpoint}/upload/initiate`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin
+                    }
+                });
+                
+                if (testResponse.ok) {
+                    logToDebugConsole('✅ Upload endpoints are accessible', 'success');
+                } else {
+                    logToDebugConsole(`⚠️ Upload endpoint returned ${testResponse.status}`, 'warning');
+                }
+            } catch (error) {
+                logToDebugConsole(`Upload endpoint test error: ${error.message}`, 'error');
+            }
+        }
+        
         function clearDebugConsole() {
             debugConsole = [];
             const consoleEl = document.getElementById('debugConsole');
@@ -6689,6 +6825,10 @@
                 awsInitialized = false;
             }, 1000);
             */ // END AWS SDK CHECK
+
+        // Force API upload mode - AWS SDK has been removed
+        window.useAPIUploads = true;
+        console.log("Developer portal configured for API-based uploads");
             
             // Check for existing token after a short delay to ensure storage is ready
             setTimeout(() => {
