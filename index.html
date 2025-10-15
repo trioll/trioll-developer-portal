@@ -2425,9 +2425,9 @@
         let uploadedGames = [];
         
         // Version indicator - UPDATE THIS when making changes
-        const PORTAL_VERSION = '2.1.0-upload-v1-fixed';
+        const PORTAL_VERSION = '2.1.1-s3-headers-fixed';
         console.log(`🚀 Trioll Developer Portal v${PORTAL_VERSION} loaded`);
-        console.log('✅ Upload Tab: v1 - Cache cleared successfully!');
+        console.log('✅ Fixed S3 upload headers - no Content-Type sent');
         
         // Global error interceptor
         window.addEventListener('error', function(event) {
@@ -2693,12 +2693,11 @@
                         this.updateStatus(`Uploading ${file.name}... (${uploadedCount + 1}/${totalFiles})`, onProgress, progressPercent);
 
                         // Upload file directly to S3 using presigned URL
+                        // IMPORTANT: Don't send headers that aren't signed in the presigned URL
                         const uploadResponse = await fetch(uploadInfo.uploadUrl, {
                             method: 'PUT',
-                            body: file,
-                            headers: {
-                                'Content-Type': file.type || 'application/octet-stream'
-                            }
+                            body: file
+                            // No headers - presigned URL doesn't expect them
                         });
 
                         if (!uploadResponse.ok) {
